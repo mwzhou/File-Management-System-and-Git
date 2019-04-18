@@ -6,10 +6,36 @@
 #include <string.h>
 #include <pthread.h>
 #define PRINT_ERROR printf
-int main(int argc, char ** argv)
-{
+
+void *connect_client(void*);
+
+void *connect_client(void *sockid){
+
+	int socket = *(int*)sockid;
+	char* buffer_Client[2000] = {0};
+
+	int readFrom = read( socket , buffer_Client, 2000); 
+   	printf("%s\n",buffer_Client);
+    	send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
+
+	free(sockid);
+	shutdown(socket,0);
+	shutdown(socket,1);
+	shutdown(socket,2);
+	int status = close(socket);
+	if(status < 0)
+		PRINT_ERROR("Error on Close\n");
+	pthread_exit(NULL);
+	return 0;
+}
+
+int main(int argc, char ** argv){	
+	
 	struct sockaddr_in address;
-	char buffer[1024] = {0};
+	if(argc!=2){
+		PRINT_ERROR("Enter an argument containing the port number\n");
+		return 0;
+	}
 	int port = atoi(argv[1]);
 	
 	int sockid = socket(AF_INET, SOCK_STREAM, 0);
@@ -30,20 +56,27 @@ int main(int argc, char ** argv)
 	if(status < 0)
 		PRINT_ERROR("Error on Bind\n");
 
-	status = listen(sockid, 3);
+	status = listen(sockid, 5);
 	if(status < 0)
 		PRINT_ERROR("Error on Listen\n");
 
-	int newSocket = accept(sockid, (struct sockaddr*) &address, (socklen_t*)&addrlen);
-	if(newSocket < 0)
-		PRINT_ERROR("Error on Accept");
-	else
+	int tempSocket, *new_Sock;	
+	while(tempSocket = accept(sockid, (struct sockaddr*) &address, (socklen_t*)&addrlen)){
 		printf("Success on connection to client!\n");
 
-	int readFrom = read( newSocket , buffer, 1024); 
-   	printf("%s\n",buffer);
-    	send(newSocket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
+		pthread_t id;
+		new_Sock = malloc(1);
+		*new_Sock = tempSocket;
+		status = pthread_create(&id, NULL, connect_client, (void*) new_Sock);
+		if(status<0)
+			PRINT_ERROR("Thread not created\n");		
+	}
+	if(tempSocket<0)
+		PRINT_ERROR("Connection to client failed");
 
+	shutdown(sockid,0);
+	shutdown(sockid,1);
+	shutdown(sockid,2);	
 	status = close(sockid);
 	if(status < 0)
 		PRINT_ERROR("Error on Close\n");

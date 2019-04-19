@@ -7,7 +7,30 @@
 #include <pthread.h>
 #define PRINT_ERROR printf
 
+typedef struct pt_Node{
+	int id;
+	pthread_mutex_t lock;
+	struct pt_Node *next;
+}pt_Node;
+
+pt_Node* head = NULL;
+
 void *connect_client(void*);
+void insert(int);
+
+void insert(int ipAddress){
+	pt_Node *insert_info;
+	insert_info->id = ipAddress;
+	insert_info->next = NULL;
+	if(head==NULL)
+		head = insert_info;
+	else{
+		pt_Node *temp = head;
+		while(temp->next!=NULL)
+			temp = temp->next;
+		temp->next = insert_info;
+	}
+}
 
 void *connect_client(void *sockid){
 
@@ -63,7 +86,6 @@ int main(int argc, char ** argv){
 	int tempSocket, *new_Sock;	
 	while(tempSocket = accept(sockid, (struct sockaddr*) &address, (socklen_t*)&addrlen)){
 		printf("Success on connection to client!\n");
-
 		pthread_t id;
 		new_Sock = malloc(1);
 		*new_Sock = tempSocket;

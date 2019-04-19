@@ -9,14 +9,16 @@
 
 typedef struct pt_Node{
 	int id;
-	pthread_mutex_t lock;
+	//pthread_mutex_t lock;
 	struct pt_Node *next;
 }pt_Node;
 
 pt_Node* head = NULL;
+pthread_mutex_t lock;
 
 void *connect_client(void*);
 void insert(int);
+void printID();
 
 void insert(int ipAddress){
 	pt_Node *insert_info;
@@ -29,6 +31,20 @@ void insert(int ipAddress){
 		while(temp->next!=NULL)
 			temp = temp->next;
 		temp->next = insert_info;
+	}
+	printID();
+}
+
+void printID(){
+	pt_Node* temp = head;
+	int count = 1;
+	while(temp->next!=NULL){
+		printf("id of count %d is %d\n",count,temp->id);
+		count++;
+		temp = temp->next;
+	}
+	if(temp!=NULL){
+		printf("id of count %d is %d\n",count,temp->id);
 	}
 }
 
@@ -79,7 +95,7 @@ int main(int argc, char ** argv){
 	if(status < 0)
 		PRINT_ERROR("Error on Bind\n");
 
-	status = listen(sockid, 5);
+	status = listen(sockid, 1);
 	if(status < 0)
 		PRINT_ERROR("Error on Listen\n");
 
@@ -89,12 +105,16 @@ int main(int argc, char ** argv){
 		pthread_t id;
 		new_Sock = malloc(1);
 		*new_Sock = tempSocket;
+		pthread_mutex_lock(&lock);
 		status = pthread_create(&id, NULL, connect_client, (void*) new_Sock);
 		if(status<0)
-			PRINT_ERROR("Thread not created\n");		
+			PRINT_ERROR("Thread not created\n");	
+		insert(id);	
+		pthread_mutex_unlock(&lock);
 	}
 	if(tempSocket<0)
 		PRINT_ERROR("Connection to client failed");
+
 
 	shutdown(sockid,0);
 	shutdown(sockid,1);

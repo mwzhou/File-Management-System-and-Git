@@ -1,85 +1,98 @@
-#include <unistd.h> 
 #include <stdio.h> 
-#include <sys/socket.h> 
 #include <stdlib.h> 
+#include <string.h> 
+#include<stdbool.h>
+#include<errno.h>
+
+#include <unistd.h> 
+#include <sys/socket.h> 
 #include <netinet/in.h> 
 #include <string.h>
 #include <pthread.h>
-#define PRINT_ERROR printf
 
-void *connect_client(void*);
+#include "fileHelperMethods.h"
 
-void *connect_client(void *sockid){
+void* connect_client(void*);
 
+void* connect_client(void *sockid){
+	//create socket
 	int socket = *(int*)sockid;
-	char* buffer_Client[2000] = {0};
-
+	
+	//READ from client
+	char buffer_Client[2000] = {0};
 	int readFrom = read( socket , buffer_Client, 2000); 
+		if(readFrom<0) pRETURN_ERROR("read", NULL);
+		
    	printf("%s\n",buffer_Client);
-    	send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
+ 
+ 	//send socket
+    send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
 
+
+	//freeing and exiting
 	free(sockid);
 	shutdown(socket,0);
 	shutdown(socket,1);
 	shutdown(socket,2);
-	int status = close(socket);
-	if(status < 0)
-		PRINT_ERROR("Error on Close\n");
+	if(close(socket) < 0) pRETURN_ERROR("Error on Close", NULL);
 	pthread_exit(NULL);
+	
 	return 0;
 }
 
-int main(int argc, char ** argv){	
-	
-	struct sockaddr_in address;
-	if(argc!=2){
-		PRINT_ERROR("Enter an argument containing the port number\n");
-		return 0;
-	}
-	int port = atoi(argv[1]);
-	
-	int sockid = socket(AF_INET, SOCK_STREAM, 0);
-	if(sockid == 0)
-		PRINT_ERROR("Error on socket creation\n");
 
+int main(int argc, char ** argv){ //TODO: print out error message?
+	//Check for arguments
+	if(argc!=2) pRETURN_ERROR("Enter an argument containing the port number\n",-1);
+		
+	//getting port
+	int port = (int)atol(argv[1]);
+	
+	//server address
+	struct sockaddr_in address;
+	
+	//CREATING SOCKET
+	int sockid = socket(AF_INET, SOCK_STREAM, 0);
+		if(sockid == 0) pRETURN_ERROR("Error on socket creation",-1);
+
+	//Setting socket options
 	int opt =1;
 	int status = setsockopt(sockid, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
-	if(status<0)
-		PRINT_ERROR("Error on Connection to port\n");
-
+		if(status<0) pRETURN_ERROR("Error on Connection to port",-1);
+		
 	address.sin_family = AF_INET;
 	address.sin_port = htons(port);
 	address.sin_addr.s_addr = INADDR_ANY;
 
+	//BINDING to client
 	int addrlen = sizeof(address);
 	status = bind(sockid, (struct sockaddr*) &address, addrlen);
-	if(status < 0)
-		PRINT_ERROR("Error on Bind\n");
+		if(status < 0) pRETURN_ERROR("Error on Bind",-1);
 
+	//LISTENto client
 	status = listen(sockid, 5);
-	if(status < 0)
-		PRINT_ERROR("Error on Listen\n");
+		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
 
+	//ACCEPT connecting and accepting message for client
 	int tempSocket, *new_Sock;	
-	while(tempSocket = accept(sockid, (struct sockaddr*) &address, (socklen_t*)&addrlen)){
+	while( (tempSocket = accept(sockid, (struct sockaddr*) &address, (socklen_t*)&addrlen) ) == 0 ){
 		printf("Success on connection to client!\n");
 
 		pthread_t id;
 		new_Sock = malloc(1);
 		*new_Sock = tempSocket;
 		status = pthread_create(&id, NULL, connect_client, (void*) new_Sock);
-		if(status<0)
-			PRINT_ERROR("Thread not created\n");		
+			if(status<0) pRETURN_ERROR("Thread not created",-1);		
 	}
-	if(tempSocket<0)
-		PRINT_ERROR("Connection to client failed");
+	//if accept failed
+	if(tempSocket<0) pRETURN_ERROR("Connection to client failed",-1);
 
+
+	//SHUT DOWN AND RETURN
 	shutdown(sockid,0);
 	shutdown(sockid,1);
 	shutdown(sockid,2);	
-	status = close(sockid);
-	if(status < 0)
-		PRINT_ERROR("Error on Close\n");
+	if(close(sockid) < 0) pRETURN_ERROR("Error on Close",-1);
 
 	return 0;
 }

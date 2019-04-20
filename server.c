@@ -12,7 +12,32 @@
 
 #include "fileHelperMethods.h"
 
-void* connect_client(void*);
+//Struct for linked list of ip adresses of pthreads being created
+typedef struct pt_Node{
+	int id;
+	//pthread_mutex_t lock;
+	struct pt_Node *next;
+}pt_Node;
+
+pt_Node* head = NULL;
+pthread_mutex_t lock;
+
+void *connect_client(void*);
+void insert(int);
+
+void insert(int ipAddress){
+	pt_Node *insert_info;
+	insert_info->id = ipAddress;
+	insert_info->next = NULL;
+	if(head==NULL)
+		head = insert_info;
+	else{
+		pt_Node *temp = head;
+		while(temp->next!=NULL)
+			temp = temp->next;
+		temp->next = insert_info;
+	}
+}
 
 void* connect_client(void *sockid){
 	//create socket
@@ -82,7 +107,9 @@ int main(int argc, char ** argv){ //TODO: print out error message?
 		new_Sock = malloc(1);
 		*new_Sock = tempSocket;
 		status = pthread_create(&id, NULL, connect_client, (void*) new_Sock);
-			if(status<0) pRETURN_ERROR("Thread not created",-1);		
+			if(status<0) pRETURN_ERROR("Thread not created",-1);
+		//insert id into linked list
+		insert(id);
 	}
 	//if accept failed
 	if(tempSocket<0) pRETURN_ERROR("Connection to client failed",-1);

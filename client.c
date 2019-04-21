@@ -61,7 +61,7 @@ bool initializeIPandPort(char** IP_addr, int* PORT_addr){
 /**
 connects to server using the "server.configure" file  TODO print out statements
 **/
-bool connectToServer(){
+bool connectToServer(int sockfd){
 	//initialize IP and PORT_addr
 		char* IP;
 		int PORT;
@@ -70,13 +70,9 @@ bool connectToServer(){
 	//declaring vars
 		//struct sockaddr_in sock_addr;
 		struct sockaddr_in serv_addr;
-		int sockfd;
-		
-	//initialize socket
-		if( (sockfd=socket(AF_INET, SOCK_STREAM, 0)) < 0 )
-			 pRETURN_ERROR("Socket Creation", false);
 		
 	//get server address
+		bzero(&serv_addr, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET; 
 		serv_addr.sin_port = htons(PORT); //convert to byte addr
 		if(inet_pton(AF_INET, IP , &serv_addr.sin_addr)<=0) //convert to byte addr
@@ -93,6 +89,12 @@ bool connectToServer(){
 
 int main(int argc, char** argv){
 	if(argc<2) pRETURN_ERROR("Not enough arguments", -1);
+
+	int sockfd;	
+
+	//initialize socket
+	if( (sockfd=socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+		pRETURN_ERROR("Socket Creation", false);
 		
 	//MAKE CONFIGURE FILE
 	if(strcmp(argv[1],"configure")==0){
@@ -102,7 +104,23 @@ int main(int argc, char** argv){
 	
 	}else{
 		//CONNECT TO SERVER
-			connectToServer();
+		connectToServer(sockfd);
+
+		if(strcmp(argv[1],"checkout")==0){
+
+			if(argc!=3) pRETURN_ERROR("checkout must be followed by 1 argument: project name", -1);
+
+			char buffer[50]; 
+			buffer[0] = 'c'; buffer[1] = 'h'; buffer[2] = 'e'; buffer[3] = 'c'; buffer[4] = 'k'; buffer[5] = 'o'; buffer[6] = 'u'; buffer[7] = 't'; buffer[8] = ' ';
+			int i = 0;
+			for(i=0; i<strlen(argv[2]); i++){
+				buffer[9+i] = argv[2][i];
+			}
+			
+			write(sockfd, buffer, sizeof(buffer));
+
+			 
+		}
 		
 		//TODO: other commands
 		

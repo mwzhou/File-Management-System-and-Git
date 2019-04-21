@@ -49,11 +49,12 @@ void* connect_client(void *sockid){
 	int readFrom = read( socket , buffer_Client, 2000); 
 		if(readFrom<0) pRETURN_ERROR("read", NULL);
 
+	//deciphering recieved info from server
 	char* tokens;
 	tokens = strtok(buffer_Client, " ");
 
 	if(strcmp(tokens,"checkout")==0){
-		while(tokens!=NULL){
+		while(tokens!=NULL){//TODO DELETE
 			printf("%s\n",tokens);
 			tokens = strtok(NULL, " ");
 		}

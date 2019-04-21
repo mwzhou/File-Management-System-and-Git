@@ -15,16 +15,151 @@
 //Struct for linked list of ip adresses of pthreads being created
 typedef struct pt_Node{
 	int id;
-	//pthread_mutex_t lock;
 	struct pt_Node *next;
 }pt_Node;
 
 pt_Node* head = NULL;
 pthread_mutex_t lock;
 
-void *connect_client(void*);
-void insert(int);
+//Accepts project Name as an incoming request from client and sends back current version of project
+void* checkout(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
 
+void* update(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* upgrade(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* commit(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* push(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+		if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* create(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* destroy(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* add(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	//Accept file Name from Client
+	char file_Name[50] = {0};
+	readFrom = read( socket , file_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	return 0;
+}
+
+void* removed(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	//Accept file Name from Client
+	char file_Name[50] = {0};
+	readFrom = read( socket , file_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	return 0;
+}
+
+void* currentversion(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* history(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* rollback(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	//Accept version number from Client
+	char version_Num[50] = {0};
+	readFrom = read( socket , version_Num, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	int version = (int)atol(version_Num);
+	printf("%d\n",version);//TODO delete
+
+	return 0;
+}
+
+//Inserts IP addresses of each pthread into a node to allow us to close each of them individually at the end
 void insert(int ipAddress){
 	pt_Node *insert_info = (pt_Node*)malloc(sizeof(pt_Node));
 	insert_info->id = ipAddress;
@@ -39,31 +174,24 @@ void insert(int ipAddress){
 	}
 }
 
+//Handles accepting information sent in by the client
 void* connect_client(void *sockid){
 	//create socket
 	int socket = *(int*)sockid;
 
 	//READ from client
-	char buffer_Client[2000] = {0};
+	char buffer_Client[50] = {0};
 
-	int readFrom = read( socket , buffer_Client, 2000); 
+	int readFrom = read( socket , buffer_Client, 50); 
 		if(readFrom<0) pRETURN_ERROR("read", NULL);
 
-	//deciphering recieved info from server
-	char* tokens;
-	tokens = strtok(buffer_Client, " ");
+	//The following if statements call the methods based on the request sent from the client	
+	if(strcmp(buffer_Client,"checkout")==0){
+		checkout(socket);
+	}
 
-	if(strcmp(tokens,"checkout")==0){
-		while(tokens!=NULL){//TODO DELETE
-			printf("%s\n",tokens);
-			tokens = strtok(NULL, " ");
-		}
-	} 
-	
-	//printf("%s\n",buffer_Client);
-
-	//send socket
-	send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
+	//send to socket
+	//send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
 
 	//freeing and exiting
 	shutdown(socket,0);
@@ -122,97 +250,6 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 	//if accept failed
 	if(tempSocket<0) pRETURN_ERROR("Connection to client failed",-1);
 
-
-	//SHUT DOWN AND RETURN
-	shutdown(sockid,0);
-	shutdown(sockid,1);
-	shutdown(sockid,2);	
-	if(close(sockid) < 0) pRETURN_ERROR("Error on Close",-1);
-
-	return 0;
-}
-	}
-	if(temp!=NULL){
-		printf("id of count %d is %d\n",count,temp->id);
-	}
-}
-
-void* connect_client(void*);
-
-void* connect_client(void *sockid){
-	//create socket
-	int socket = *(int*)sockid;
-	
-	//READ from client
-	char buffer_Client[2000] = {0};
-	int readFrom = read( socket , buffer_Client, 2000); 
-		if(readFrom<0) pRETURN_ERROR("read", NULL);
-		
-   	printf("%s\n",buffer_Client);
- 
- 	//send socket
-    send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
-
-
-	//freeing and exiting
-	free(sockid);
-	shutdown(socket,0);
-	shutdown(socket,1);
-	shutdown(socket,2);
-	if(close(socket) < 0) pRETURN_ERROR("Error on Close", NULL);
-	pthread_exit(NULL);
-	
-	return 0;
-}
-
-
-int main(int argc, char ** argv){ //TODO: print out error message?
-	//Check for arguments
-	if(argc!=2) pRETURN_ERROR("Enter an argument containing the port number\n",-1);
-		
-	//getting port
-	int port = (int)atol(argv[1]);
-	
-	//server address
-	struct sockaddr_in address;
-	
-	//CREATING SOCKET
-	int sockid = socket(AF_INET, SOCK_STREAM, 0);
-		if(sockid == 0) pRETURN_ERROR("Error on socket creation",-1);
-
-	//Setting socket options
-	int opt =1;
-	int status = setsockopt(sockid, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
-		if(status<0) pRETURN_ERROR("Error on Connection to port",-1);
-		
-	address.sin_family = AF_INET;
-	address.sin_port = htons(port);
-	address.sin_addr.s_addr = INADDR_ANY;
-
-	//BINDING to client
-	int addrlen = sizeof(address);
-	status = bind(sockid, (struct sockaddr*) &address, addrlen);
-		if(status < 0) pRETURN_ERROR("Error on Bind",-1);
-
-	//LISTENto client
-	status = listen(sockid, 1);
-		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
-
-	//ACCEPT connecting and accepting message for client
-	int tempSocket, *new_Sock;	
-	while( (tempSocket = accept(sockid, (struct sockaddr*) &address, (socklen_t*)&addrlen) ) == 0 ){
-		printf("Success on connection to client!\n");
-		pthread_t id;
-		new_Sock = malloc(1);
-		*new_Sock = tempSocket;
-		pthread_mutex_lock(&lock);
-		status = pthread_create(&id, NULL, connect_client, (void*) new_Sock);
-		if(status<0) pRETURN_ERROR("Thread not created",-1);	
-    insert(id);	
-		pthread_mutex_unlock(&lock);
-	}
-	//if accept failed
-	if(tempSocket<0) pRETURN_ERROR("Connection to client failed",-1);
 
 	//SHUT DOWN AND RETURN
 	shutdown(sockid,0);

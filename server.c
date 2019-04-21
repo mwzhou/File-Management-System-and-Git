@@ -26,7 +26,7 @@ void *connect_client(void*);
 void insert(int);
 
 void insert(int ipAddress){
-	pt_Node *insert_info;
+	pt_Node *insert_info = (pt_Node*)malloc(sizeof(pt_Node));
 	insert_info->id = ipAddress;
 	insert_info->next = NULL;
 	if(head==NULL)

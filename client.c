@@ -17,18 +17,23 @@
 
 #include "fileHelperMethods.h"
 
+//GLOBAL
+int sockfd = -1;
 
+
+//CONFIGURE//////////////////////////////////////////////////////////////
 /**
 writes .configure file in directory of executable with IP and PORT info
 **/
 bool writeConfigureFile(char* IP, char* port){
 	//CHECK ARGUMENTS
-	if( gethostbyname(IP) == NULL ) pRETURN_ERROR("issue reading IP",false); 
-	int pnum = (int)strtol(port, NULL, 10);
-	if(pnum<8000 ||pnum>65535) pRETURN_ERROR("port must be an int between 8000 and 65535", false);
-	
-	
-	//CREATE CONF FILE
+	//checking IP
+		if( gethostbyname(IP) == NULL ) pRETURN_ERROR("issue reading IP",false); 
+	//checking port
+		int pnum = (int)strtol(port, NULL, 10); 
+		if(pnum<8000 ||pnum>65535) pRETURN_ERROR("port must be an int between 8000 and 65535", false);
+		
+	//CREATE CONFIGURE FILE
 	int file = openFileW("./.configure");
 		if(file<0) pRETURN_ERROR("writing configure file", false); 
 	
@@ -55,13 +60,116 @@ bool initializeIPandPort(char** IP_addr, int* PORT_addr){
 	
 	return true;
 }
+/////////////////////////////////////////////////////////////////////////
 
 
+
+//[3.1] CHECKOUT//////////////////////////////////////////////////////////
+bool checkoutClient(char* proj_name){
+	write(sockfd, "checkout", strlen("checkout"));
+	return true;
+}
+////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.2] UPDATE//////////////////////////////////////////////////////////////
+bool updateClient(char* proj_name){
+	return true;
+}
+///////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.3] UPGRADE//////////////////////////////////////////////////////////////
+bool upgradeClient(char* proj_name){
+	return true;
+}
+////////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.4] COMMIT//////////////////////////////////////////////////////////////
+bool commitClient(char* proj_name){
+	return true;
+}
+////////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.5] PUSH//////////////////////////////////////////////////////////////
+bool pushClient(char* proj_name){
+	return true;
+}
+/////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.6] CREATE//////////////////////////////////////////////////////////////
+bool createClient(char* proj_name){
+	write(sockfd, "create", strlen("create"));
+	write(sockfd, proj_name , strlen(proj_name));
+	return true;
+}
+////////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.7] DESTROY//////////////////////////////////////////////////////////////
+bool destroyClient(char* proj_name){
+	return true;
+}
+////////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.8] ADD//////////////////////////////////////////////////////////////
+bool addClient(char* proj_name, char* file_name){
+	return true;
+}
+////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.9] REMOVE//////////////////////////////////////////////////////////////
+bool removeClient(char* proj_name, char* file_name){
+	return true;
+}
+////////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.10] CURRENT VERSION/////////////////////////////////////////////////////
+bool currentVersionClient(char* proj_name){
+	return true;
+}
+////////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.11] HISTORY//////////////////////////////////////////////////////////////
+bool historyClient(char* proj_name){
+	return true;
+}
+//////////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.12] ROLLBACK//////////////////////////////////////////////////////////////
+bool rollbackClient(char* proj_name){
+	return true;
+}
+//////////////////////////////////////////////////////////////////////////////
+
+
+
+
+//CONNECT//////////////////////////////////////////////////////////////
 
 /**
 connects to server using the "server.configure" file  TODO print out statements
 **/
-bool connectToServer(){
+bool connectToServer(int sockfd){
 	//initialize IP and PORT_addr
 		char* IP;
 		int PORT;
@@ -70,13 +178,9 @@ bool connectToServer(){
 	//declaring vars
 		//struct sockaddr_in sock_addr;
 		struct sockaddr_in serv_addr;
-		int sockfd;
-		
-	//initialize socket
-		if( (sockfd=socket(AF_INET, SOCK_STREAM, 0)) < 0 )
-			 pRETURN_ERROR("Socket Creation", false);
 		
 	//get server address
+		bzero(&serv_addr, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET; 
 		serv_addr.sin_port = htons(PORT); //convert to byte addr
 		if(inet_pton(AF_INET, IP , &serv_addr.sin_addr)<=0) //convert to byte addr
@@ -89,68 +193,94 @@ bool connectToServer(){
 	printf("Successfully connected to server!\n");
 	return true;		
 }
+////////////////////////////////////////////////////////////////////////
 
 
 int main(int argc, char** argv){
 	if(argc<2) pRETURN_ERROR("Not enough arguments", -1);
-	char* command = arg[1];
+	
+	char* command = argv[1];
+	
+	//initialize socket
+	if( (sockfd=socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+		pRETURN_ERROR("Socket Creation", false);
 	
 	//MAKE CONFIGURE FILE
 	if(strcmp(command,"configure")==0){
 		if(argc!=4) pRETURN_ERROR("configure must be followed by 2 arguments: IP and Port", -1);
-		return writeConfigureFile(argv[2], argv[3])? 0: -1;//write config file and return
+		//write config file and return
+		return writeConfigureFile(argv[2], argv[3])? 0: -1;
 	}
 	
 	//CONNECT TO SERVER
-		connectToServer();
-		
+		connectToServer(sockfd);
+
 	//COMMANDS
-	//checkout
+	//[3.1] checkout
 	if (strcmp(command,"checkout")==0){
 		if(argc!=3) pRETURN_ERROR("checkout must be followed by 1 argument: project name", -1);
-	
-	//update
+		return checkoutClient(argv[2])? 0: -1;
+		
+	//[3.2] update
 	}else if (strcmp(command,"update")==0){
 		if(argc!=3) pRETURN_ERROR("update must be followed by 1 argument: project name", -1);
+		return updateClient(argv[2])? 0: -1;
 		
-	//upgrade
+	//[3.3] upgrade
 	}else if (strcmp(command,"upgrade")==0){
 		if(argc!=3) pRETURN_ERROR("upgrade must be followed by 1 argument: project name", -1);
-	
-	//commit
+		return upgradeClient(argv[2])? 0: -1;
+		
+	//[3.4] commit
 	}else if (strcmp(command,"commit")==0){
 		if(argc!=3) pRETURN_ERROR("commit must be followed by 1 argument: project name", -1);
+		return commitClient(argv[2])? 0: -1;
 		
-	//push
+	//[3.5] push
 	}else if (strcmp(command,"push")==0){
 		if(argc!=3) pRETURN_ERROR("push must be followed by 1 argument: project name", -1);
+		return pushClient(argv[2])? 0: -1;
 		
-	//create
+	//[3.6] create
 	}else if (strcmp(command,"create")==0){
-		if(argc!=3) pRETURN_ERROR("push must be followed by 1 argument: project name", -1);
+		if(argc!=3) pRETURN_ERROR("create must be followed by 1 argument: project name", -1);
+		return createClient(argv[2])? 0: -1;
 		
-	//destroy
+	//[3.7] destroy
 	}else if (strcmp(command,"destroy")==0){
-		if(argc!=3) pRETURN_ERROR("push must be followed by 1 argument: project name", -1);
+		if(argc!=3) pRETURN_ERROR("destroy must be followed by 1 argument: project name", -1);
+		return destroyClient(argv[2])? 0: -1;
 		
-	//add
+	//[3.8] add
 	}else if (strcmp(command,"add")==0){
+		if(argc!=4) pRETURN_ERROR("destroy must be followed by 2 arguments: project name and file name", -1);
+		return addClient(argv[2], argv[3])? 0: -1;
 		
-	//remove
+	//[3.9] remove
 	}else if (strcmp(command,"remove")==0){
-	
-	//currentversion
-	}else if (strcmp(command,"currentversion")==0){
+		if(argc!=4) pRETURN_ERROR("remove must be followed by 2 arguments: project name and file name", -1);
+		return removeClient(argv[2], argv[3])? 0: -1;
 		
-	//history
+	//[3.10] currentversion
+	}else if (strcmp(command,"currentversion")==0){
+		if(argc!=3) pRETURN_ERROR("currentversion must be followed by 1 argument: project name", -1);
+		return currentVersionClient(argv[2])? 0: -1;
+		
+	//[3.11] history
 	}else if (strcmp(command,"history")==0){
-	
-	//rollback	
+		if(argc!=3) pRETURN_ERROR("history must be followed by 1 argument: project name", -1);
+		return historyClient(argv[2])? 0: -1;
+		
+	//[3.12] rollback	
 	}else if (strcmp(command,"rollback")==0){
+		if(argc!=3) pRETURN_ERROR("rollback must be followed by 1 argument: project name", -1);
+		return rollbackClient(argv[2])? 0: -1;
 		
 	}else{
 		pRETURN_ERROR("did not enter in a valid command (refrence ReadMe for valid commands)",-1);
-	}
+	}		
+		
+		
 		
 	return 0;
 }

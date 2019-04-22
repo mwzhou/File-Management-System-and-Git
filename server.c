@@ -22,9 +22,145 @@ typedef struct pt_Node{
 pt_Node* head = NULL;
 pthread_mutex_t lock;
 
-void *connect_client(void*);
-void insert(int);
+//Accepts project Name as an incoming request from client and sends back current version of project
+void* checkoutServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
 
+void* updateServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* upgradeServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* commitServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* pushServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+		if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* createServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* destroyServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* addServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	//Accept file Name from Client
+	char file_Name[50] = {0};
+	readFrom = read( socket , file_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	return 0;
+}
+
+void* removeServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	//Accept file Name from Client
+	char file_Name[50] = {0};
+	readFrom = read( socket , file_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	return 0;
+}
+
+void* currentversionServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* historyServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	return 0;
+}
+
+void* rollbackServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	//Accept version number from Client
+	char version_Num[50] = {0};
+	readFrom = read( socket , version_Num, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+	int version = (int)atol(version_Num);
+	printf("%d\n",version);//TODO delete
+
+	return 0;
+}
+
+//Inserts IP addresses of each pthread into a node to allow us to close each of them individually at the end
 void insert(int ipAddress){
 	pt_Node *insert_info = (pt_Node*)malloc(sizeof(pt_Node));
 	insert_info->id = ipAddress;
@@ -51,8 +187,35 @@ void* connect_client(void *sockid){
 	
 	printf("%s\n",buffer_Client);
 
-	//send socket
-	send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
+	//The following if statements call methods based on the request sent from the client	
+	if(strcmp(buffer_Client,"checkout")==0)
+		checkoutServer(socket);
+	else if(strcmp(buffer_Client,"update")==0)
+		updateServer(socket);
+	else if(strcmp(buffer_Client,"upgrade")==0)
+		upgradeServer(socket);
+	else if(strcmp(buffer_Client,"commit")==0)
+		commitServer(socket);
+	else if(strcmp(buffer_Client,"push")==0)
+		pushServer(socket);
+	else if(strcmp(buffer_Client,"create")==0)
+		createServer(socket);
+	else if(strcmp(buffer_Client,"destroy")==0)
+		destroyServer(socket);
+	else if(strcmp(buffer_Client,"add")==0)
+		addServer(socket);
+	else if(strcmp(buffer_Client,"remove")==0)
+		removeServer(socket);
+	else if(strcmp(buffer_Client,"currentversion")==0)
+		currentversionServer(socket);
+	else if(strcmp(buffer_Client,"history")==0)
+		historyServer(socket);
+	else if(strcmp(buffer_Client,"rollback")==0)
+		rollbackServer(socket);
+
+	//TODO delete(use as reference for methods)	
+	//send to socket
+	//send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
 
 	//freeing and exiting
 	shutdown(socket,0);

@@ -43,11 +43,13 @@ void* checkoutServer(int socket){
 	struct stat file_stat;
 	if(stat(path,&file_stat)<0) pRETURN_ERROR("Error retrieving stats of File",NULL);
 
+	//Sending File size
 	char file_size[200];
 	sprintf(file_size,"%ld",file_stat.st_size);
 	ssize_t len = send(socket, file_size,sizeof(file_size),0);
 	if(len<0) pRETURN_ERROR("Error on sending file info",NULL);
 
+	//sending file contents
 	off_t offset,sent_bytes = 0;
 	off_t remain_data = file_stat.st_size;
 	while(((sent_bytes = sendfile(socket, fileDescriptor, &offset, BUFSIZ))>0) && (remain_data>0))

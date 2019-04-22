@@ -5,7 +5,10 @@
 #include <errno.h>
 
 #include <unistd.h> 
-#include <sys/socket.h> 
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <sys/sendfile.h>
+#include <sys/stat.h>
 #include <netinet/in.h> 
 #include <string.h>
 #include <pthread.h>
@@ -15,7 +18,6 @@
 //Struct for linked list of ip adresses of pthreads being created
 typedef struct pt_Node{
 	int id;
-	//pthread_mutex_t lock;
 	struct pt_Node *next;
 }pt_Node;
 
@@ -29,6 +31,27 @@ void* checkoutServer(int socket){
 	char project_Name[50] = {0};
 	int readFrom = read( socket , project_Name, 50); 
 	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	//Get path of file
+	char* path= realpath(project_Name,NULL);
+	if(path==NULL) pRETURN_ERROR("File does not exist or memory has overloaded",NULL);
+	
+	//STEPS TO SENDING FILE TO CLIENT
+	int fileDescriptor = open(path,O_RDONLY);
+	if(fileDescriptor == -1) pRETURN_ERROR("Error opening File",NULL);
+
+	struct stat file_stat;
+	if(stat(path,&file_stat)<0) pRETURN_ERROR("Error retrieving stats of File",NULL);
+
+	char file_size[200];
+	sprintf(file_size,"%ld",file_stat.st_size);
+	ssize_t len = send(socket, file_size,sizeof(file_size),0);
+	if(len<0) pRETURN_ERROR("Error on sending file info",NULL);
+
+	off_t offset,sent_bytes = 0;
+	off_t remain_data = file_stat.st_size;
+	while(((sent_bytes = sendfile(socket, fileDescriptor, &offset, BUFSIZ))>0) && (remain_data>0))
+		remain_data -= sent_bytes;
 	
 	return 0;
 }
@@ -175,17 +198,17 @@ void insert(int ipAddress){
 	}
 }
 
+//Handles accepting information sent in by the client
 void* connect_client(void *sockid){
 	//create socket
 	int socket = *(int*)sockid;
 
 	//READ from client
-	char buffer_Client[2000] = {0};
+	char buffer_Client[50] = {0};
 
-	int readFrom = read( socket , buffer_Client, 2000); 
+	int readFrom = read( socket , buffer_Client, 50); 
 		if(readFrom<0) pRETURN_ERROR("read", NULL);
-	
-	printf("%s\n",buffer_Client);
+	send(socket , "" , strlen("") , 0 );
 
 	//The following if statements call methods based on the request sent from the client	
 	if(strcmp(buffer_Client,"checkout")==0)
@@ -260,7 +283,7 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
 
 	//ACCEPT connecting and accepting message for client
-	int tempSocket,*new_socket;	
+	int tempSocket;	
 	while((tempSocket = accept(sockid, (struct sockaddr*) &address, (socklen_t*)&addrlen))>0){
 		printf("Success on connection to client!\n");
 		

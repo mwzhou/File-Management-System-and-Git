@@ -66,7 +66,14 @@ bool initializeIPandPort(char** IP_addr, int* PORT_addr){
 
 //[3.1] CHECKOUT//////////////////////////////////////////////////////////
 bool checkoutClient(char* proj_name){
+	char buffer [BUFSIZ];
 	write(sockfd, "checkout", strlen("checkout"));
+	read(sockfd, buffer, BUFSIZ);
+	write(sockfd, proj_name , strlen(proj_name));
+	recv(sockfd, buffer, BUFSIZ, 0);
+	int file_size = (int)atol(buffer);
+	int remain_data = file_size;	
+	//while((remain_data>0) && (())
 	return true;
 }
 ////////////////////////////////////////////////////////////////////////

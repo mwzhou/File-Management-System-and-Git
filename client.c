@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include<sys/types.h>
+#include<netdb.h>
 
 #include "fileHelperMethods.h"
 
@@ -21,10 +22,17 @@
 writes .configure file in directory of executable with IP and PORT info
 **/
 bool writeConfigureFile(char* IP, char* port){
+	//CHECK ARGUMENTS
+	if( gethostbyname(IP) == NULL ) pRETURN_ERROR("issue reading IP",false); 
+	int pnum = (int)strtol(port, NULL, 10);
+	if(pnum<8000 ||pnum>65535) pRETURN_ERROR("port must be an int between 8000 and 65535", false);
+	
+	
+	//CREATE CONF FILE
 	int file = openFileW("./.configure");
 		if(file<0) pRETURN_ERROR("writing configure file", false); 
 	
-	//write IP and Port info to file
+	//WRITE IP and Port info to file
 	WRITE_AND_CHECKf(file, IP, strlen(IP));
 	WRITE_AND_CHECKf(file, "\n", 1);
 	WRITE_AND_CHECKf(file, port, strlen(port));
@@ -39,20 +47,12 @@ initializes IP and PORT by reading the configure file
 **/
 bool initializeIPandPort(char** IP_addr, int* PORT_addr){
 	char* conf = readFile("./.configure");
-		if(conf==NULL) pRETURN_ERROR("error reading file",false);
+		if(conf==NULL) pRETURN_ERROR("error reading file, did not configure",false);
 	
-	//SET IP
+	//SET IP AND PORT
 	*IP_addr = strtok(conf, "\n");
+	*PORT_addr = (int)strtol(strtok(NULL, "\n"), NULL, 10);
 	
-	//SET PORT
-	char* pstr = strtok(NULL, "\n"); //port string
-	if(strcmp(pstr,"0")==0){
-		*PORT_addr = 0;
-	}else{
-		*PORT_addr = (int)strtol(pstr, NULL, 10);
-			if(*PORT_addr<=0) pRETURN_ERROR("port must be an int", false);
-	}
-		
 	return true;
 }
 
@@ -61,7 +61,7 @@ bool initializeIPandPort(char** IP_addr, int* PORT_addr){
 /**
 connects to server using the "server.configure" file  TODO print out statements
 **/
-bool connectToServer(int sockfd){
+bool connectToServer(){
 	//initialize IP and PORT_addr
 		char* IP;
 		int PORT;
@@ -70,9 +70,13 @@ bool connectToServer(int sockfd){
 	//declaring vars
 		//struct sockaddr_in sock_addr;
 		struct sockaddr_in serv_addr;
+		int sockfd;
+		
+	//initialize socket
+		if( (sockfd=socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+			 pRETURN_ERROR("Socket Creation", false);
 		
 	//get server address
-		bzero(&serv_addr, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET; 
 		serv_addr.sin_port = htons(PORT); //convert to byte addr
 		if(inet_pton(AF_INET, IP , &serv_addr.sin_addr)<=0) //convert to byte addr
@@ -89,43 +93,64 @@ bool connectToServer(int sockfd){
 
 int main(int argc, char** argv){
 	if(argc<2) pRETURN_ERROR("Not enough arguments", -1);
-
-	int sockfd;	
-
-	//initialize socket
-	if( (sockfd=socket(AF_INET, SOCK_STREAM, 0)) < 0 )
-		pRETURN_ERROR("Socket Creation", false);
-		
-	//MAKE CONFIGURE FILE
-	if(strcmp(argv[1],"configure")==0){
-		if(argc!=4) pRETURN_ERROR("configure must be followed by 2 arguments: IP and Port", -1);
-		//write config file and return
-		return writeConfigureFile(argv[2], argv[3])? 0: -1;
+	char* command = arg[1];
 	
+	//MAKE CONFIGURE FILE
+	if(strcmp(command,"configure")==0){
+		if(argc!=4) pRETURN_ERROR("configure must be followed by 2 arguments: IP and Port", -1);
+		return writeConfigureFile(argv[2], argv[3])? 0: -1;//write config file and return
+	}
+	
+	//CONNECT TO SERVER
+		connectToServer();
+		
+	//COMMANDS
+	//checkout
+	if (strcmp(command,"checkout")==0){
+		if(argc!=3) pRETURN_ERROR("checkout must be followed by 1 argument: project name", -1);
+	
+	//update
+	}else if (strcmp(command,"update")==0){
+		if(argc!=3) pRETURN_ERROR("update must be followed by 1 argument: project name", -1);
+		
+	//upgrade
+	}else if (strcmp(command,"upgrade")==0){
+		if(argc!=3) pRETURN_ERROR("upgrade must be followed by 1 argument: project name", -1);
+	
+	//commit
+	}else if (strcmp(command,"commit")==0){
+		if(argc!=3) pRETURN_ERROR("commit must be followed by 1 argument: project name", -1);
+		
+	//push
+	}else if (strcmp(command,"push")==0){
+		if(argc!=3) pRETURN_ERROR("push must be followed by 1 argument: project name", -1);
+		
+	//create
+	}else if (strcmp(command,"create")==0){
+		if(argc!=3) pRETURN_ERROR("push must be followed by 1 argument: project name", -1);
+		
+	//destroy
+	}else if (strcmp(command,"destroy")==0){
+		if(argc!=3) pRETURN_ERROR("push must be followed by 1 argument: project name", -1);
+		
+	//add
+	}else if (strcmp(command,"add")==0){
+		
+	//remove
+	}else if (strcmp(command,"remove")==0){
+	
+	//currentversion
+	}else if (strcmp(command,"currentversion")==0){
+		
+	//history
+	}else if (strcmp(command,"history")==0){
+	
+	//rollback	
+	}else if (strcmp(command,"rollback")==0){
+		
 	}else{
-		//CONNECT TO SERVER
-		connectToServer(sockfd);
-
-		if(strcmp(argv[1],"checkout")==0){
-
-			if(argc!=3) pRETURN_ERROR("checkout must be followed by 1 argument: project name", -1);
-
-			char buffer[50]; 
-			buffer[0] = 'c'; buffer[1] = 'h'; buffer[2] = 'e'; buffer[3] = 'c'; buffer[4] = 'k'; buffer[5] = 'o'; buffer[6] = 'u'; buffer[7] = 't'; buffer[8] = ' ';
-			int i = 0;
-			for(i=0; i<strlen(argv[2]); i++){
-				buffer[9+i] = argv[2][i];
-			}
-			
-			write(sockfd, buffer, sizeof(buffer));
-
-			 
-		}
-		
-		//TODO: other commands
-		
+		pRETURN_ERROR("did not enter in a valid command (refrence ReadMe for valid commands)",-1);
 	}
 		
-	
 	return 0;
 }

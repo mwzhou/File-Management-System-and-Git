@@ -15,6 +15,7 @@
 //Struct for linked list of ip adresses of pthreads being created
 typedef struct pt_Node{
 	int id;
+	//pthread_mutex_t lock;
 	struct pt_Node *next;
 }pt_Node;
 
@@ -174,16 +175,17 @@ void insert(int ipAddress){
 	}
 }
 
-//Handles accepting information sent in by the client
 void* connect_client(void *sockid){
 	//create socket
 	int socket = *(int*)sockid;
 
 	//READ from client
-	char buffer_Client[50] = {0};
+	char buffer_Client[2000] = {0};
 
-	int readFrom = read( socket , buffer_Client, 50); 
+	int readFrom = read( socket , buffer_Client, 2000); 
 		if(readFrom<0) pRETURN_ERROR("read", NULL);
+	
+	printf("%s\n",buffer_Client);
 
 	//The following if statements call methods based on the request sent from the client	
 	if(strcmp(buffer_Client,"checkout")==0)
@@ -258,7 +260,7 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
 
 	//ACCEPT connecting and accepting message for client
-	int tempSocket;	
+	int tempSocket,*new_socket;	
 	while((tempSocket = accept(sockid, (struct sockaddr*) &address, (socklen_t*)&addrlen))>0){
 		printf("Success on connection to client!\n");
 		

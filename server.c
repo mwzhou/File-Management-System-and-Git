@@ -22,7 +22,7 @@ pt_Node* head = NULL;
 pthread_mutex_t lock;
 
 //Accepts project Name as an incoming request from client and sends back current version of project
-void* checkout(int socket){
+void* checkoutServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -32,7 +32,7 @@ void* checkout(int socket){
 	return 0;
 }
 
-void* update(int socket){
+void* updateServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -42,7 +42,7 @@ void* update(int socket){
 	return 0;
 }
 
-void* upgrade(int socket){
+void* upgradeServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -52,7 +52,7 @@ void* upgrade(int socket){
 	return 0;
 }
 
-void* commit(int socket){
+void* commitServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -62,7 +62,7 @@ void* commit(int socket){
 	return 0;
 }
 
-void* push(int socket){
+void* pushServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -72,7 +72,7 @@ void* push(int socket){
 	return 0;
 }
 
-void* create(int socket){
+void* createServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -82,7 +82,7 @@ void* create(int socket){
 	return 0;
 }
 
-void* destroy(int socket){
+void* destroyServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -92,22 +92,7 @@ void* destroy(int socket){
 	return 0;
 }
 
-void* add(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-
-	//Accept file Name from Client
-	char file_Name[50] = {0};
-	readFrom = read( socket , file_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-
-	return 0;
-}
-
-void* removed(int socket){
+void* addServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -122,7 +107,22 @@ void* removed(int socket){
 	return 0;
 }
 
-void* currentversion(int socket){
+void* removeServer(int socket){
+	
+	//Accept project Name from Client
+	char project_Name[50] = {0};
+	int readFrom = read( socket , project_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	//Accept file Name from Client
+	char file_Name[50] = {0};
+	readFrom = read( socket , file_Name, 50); 
+	if(readFrom<0) pRETURN_ERROR("read", NULL);
+
+	return 0;
+}
+
+void* currentversionServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -132,7 +132,7 @@ void* currentversion(int socket){
 	return 0;
 }
 
-void* history(int socket){
+void* historyServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -142,7 +142,7 @@ void* history(int socket){
 	return 0;
 }
 
-void* rollback(int socket){
+void* rollbackServer(int socket){
 	
 	//Accept project Name from Client
 	char project_Name[50] = {0};
@@ -185,11 +185,33 @@ void* connect_client(void *sockid){
 	int readFrom = read( socket , buffer_Client, 50); 
 		if(readFrom<0) pRETURN_ERROR("read", NULL);
 
-	//The following if statements call the methods based on the request sent from the client	
-	if(strcmp(buffer_Client,"checkout")==0){
-		checkout(socket);
-	}
+	//The following if statements call methods based on the request sent from the client	
+	if(strcmp(buffer_Client,"checkout")==0)
+		checkoutServer(socket);
+	else if(strcmp(buffer_Client,"update")==0)
+		updateServer(socket);
+	else if(strcmp(buffer_Client,"upgrade")==0)
+		upgradeServer(socket);
+	else if(strcmp(buffer_Client,"commit")==0)
+		commitServer(socket);
+	else if(strcmp(buffer_Client,"push")==0)
+		pushServer(socket);
+	else if(strcmp(buffer_Client,"create")==0)
+		createServer(socket);
+	else if(strcmp(buffer_Client,"destroy")==0)
+		destroyServer(socket);
+	else if(strcmp(buffer_Client,"add")==0)
+		addServer(socket);
+	else if(strcmp(buffer_Client,"remove")==0)
+		removeServer(socket);
+	else if(strcmp(buffer_Client,"currentversion")==0)
+		currentversionServer(socket);
+	else if(strcmp(buffer_Client,"history")==0)
+		historyServer(socket);
+	else if(strcmp(buffer_Client,"rollback")==0)
+		rollbackServer(socket);
 
+	//TODO delete(use as reference for methods)	
 	//send to socket
 	//send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
 

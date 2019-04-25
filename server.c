@@ -141,30 +141,17 @@ void* historyServer( int curr_sockid, char* proj_name  ){
 	return 0;
 }
 
+
+////////////////////////////////////////////////////////////////////////
 void* rollbackServer(  int curr_sockid, char* proj_name, char* version_num){
 
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
 
 
-//Inserts IP addresses of each pthread into a node to allow us to close each of them individually at the end
-void insert(int ipAddress){
-/*
-	pt_Node *insert_info = (pt_Node*)malloc(sizeof(pt_Node));
-	insert_info->id = ipAddress;
-	insert_info->next = NULL;
-	if(head==NULL)
-		head = insert_info;
-	else{
-		pt_Node *temp = head;
-		while(temp->next!=NULL)
-			temp = temp->next;
-		temp->next = insert_info;
-	}
-*/
-}
 
-
+//CONNECT//////////////////////////////////////////////////////////////////////
 //Handles accepting information sent in by the client
 void* connect_client(void* curr_socket ){
 	int curr_sockid = *(int*)curr_socket;
@@ -243,6 +230,7 @@ void* connect_client(void* curr_socket ){
 
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
 
 
 

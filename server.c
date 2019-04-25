@@ -226,7 +226,7 @@ void* connect_client(void* curr_socket ){
 		historyServer(curr_sockid, project);
 
 	else if(strcmp(command,"rollback")==0)
-		rollbackServer(curr_sockid, project, s3;
+		rollbackServer(curr_sockid, project, s3);
 
 	//TODO delete(use as reference for methods)
 	//send to socket
@@ -243,6 +243,7 @@ void* connect_client(void* curr_socket ){
 
 	return 0;
 }
+
 
 
 int main(int argc, char * argv[]){ //TODO: print out error message?
@@ -271,6 +272,45 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 
 	//BINDING to client
 	int addrlen = sizeof(address);
+	int status = bind(socket_c, (struct sockaddr*) &address, addrlen);
+		if(status < 0) pRETURN_ERROR("Error on Bind",-1);
+
+	//LISTENto client TODO: change to 20
+	status = listen(socket_c, 20);
+		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
+
+
+	//ACCEPT connecting and accepting message for client
+	int curr_socket;
+	while( (curr_socket= accept(socket_c, (struct sockaddr*) &address, (socklen_t*)&addrlen)) >0 ){
+	 //add client thread to global
+	 	ClientThread curr_client = {-1, curr_socket};
+		clients[num_clients] =  curr_client; //TODO: change -1 to pthread
+
+		num_clients++; //TODO: add mutex
+		//connect to client
+		connect_client( (void*)&curr_socket );
+	}
+
+	//if accept failed
+	if(curr_socket<0) pRETURN_ERROR("Connection to client failed",-1);
+/*SHOULD BE INSIDE LOOP
+		//create new thread
+		pthread_t id;
+		status = pthread_create(&id, NULL, connect_client, (void*) &tempSocket);
+			if(status<0) pRETURN_ERROR("Thread not created",-1);
+		//insert id into linked list
+		insert(id);
+	}
+*/
+
+/*
+	//SHUT DOWN AND RETURN
+	shutdown(socket_c,0);
+	shutdown(socket_c,1);
+	shutdown(socket_c,2);
+*/
+	if(close(socket_c) < 0) pRETURN_ERROR("Error on Close",-1);
 
 	return 0;
 }

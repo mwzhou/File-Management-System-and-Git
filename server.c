@@ -43,12 +43,10 @@ update
 */
 void* updateServer(  int curr_sockid, char* proj_name  ){
 	printf("%d] Entered command: update\n", curr_sockid);
-	//error check
-	printf("%d\n",typeOfFile(".Manifest") );
-		if( typeOfFile(proj_name)!=isDIR ){ sendErrorSocket(curr_sockid); pRETURN_ERROR("project doesn't exist on server",NULL); }
-		if( typeOfFile(".Manifest")!=isREG ){ sendErrorSocket(curr_sockid); pRETURN_ERROR(".Manifest file doesn't exist on server",NULL); }
-		printf("%d\n",typeOfFile(".Manifest") );
 
+	//error check
+		if( typeOfFile(proj_name)!=isDIR ){ sendErrorSocket(curr_sockid); pRETURN_ERROR("project doesn't exist on server",NULL); }
+		if( typeOfFile(".Manifest") != isREG ){  sendErrorSocket(curr_sockid); printf("error\n"); pRETURN_ERROR(".Manifest file doesn't exist on server",NULL); }
 
 	//send manifest file to client
 		char* manifest_str = readFile(".Manifest"); //TODO: tar
@@ -163,9 +161,10 @@ void* connect_client(void* curr_socket ){
 
 
 	//Recieve info from client
-		char* info_from_client = (char*)malloc( num_bytes);
+		char* info_from_client = (char*)malloc(num_bytes + 1);
 				if( info_from_client==NULL ) pEXIT_ERROR("malloc");
 		READ_AND_CHECKn( curr_sockid , info_from_client , num_bytes);
+		info_from_client[num_bytes] = '\0';
 
 	//Parse through info and store in variables
 		char delim[1]; delim[0] = (char)176;
@@ -227,7 +226,9 @@ void* connect_client(void* curr_socket ){
 	shutdown(socket_c,1);
 	shutdown(socket_c,2);
 	*/
-	//if(close(socket_c) < 0) pRETURN_ERROR("Error on Close", NULL);
+
+	//close
+	if(close(socket_c) < 0) pRETURN_ERROR("Error on Close", NULL);
 	//pthread_exit(NULL);
 
 	return 0;
@@ -249,6 +250,9 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 	//CREATING SOCKET
 	socket_c = socket(AF_INET, SOCK_STREAM, 0);
 		if(socket_c == 0) pRETURN_ERROR("Error on socket creation",-1);
+	//reuse socket
+	if (setsockopt(socket_c, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0)  pRETURN_ERROR("setsockopt(SO_REUSEADDR) failed",-1);
+
 	//initialize socket_c
 
 

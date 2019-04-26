@@ -87,7 +87,7 @@ void updateClient(char* proj_name){
 	//recieve .Manifest bytes
 		int num_bytes;
 		READ_AND_CHECKe(sockfd, &num_bytes, 4);
-			if(num_bytes<=0){ pEXIT_ERROR("Error on Server side"); }
+			if(num_bytes<=0){ printf("Error on Server side\n"); return; }
 		printf("\tRecieved %d num_bytes to read from Server\n", num_bytes);
 
 	//recieve .Manifest file_contents

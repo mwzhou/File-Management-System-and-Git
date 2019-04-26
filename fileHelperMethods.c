@@ -89,11 +89,17 @@ returns the type of the string given in
 	isUNDEF - error
 **/
 FileType typeOfFile(char* file_name){
-	if(file_name ==NULL){ pRETURN_ERROR("passed in NULL path", isUNDEF); }
-	if( file_name[(int)strlen(file_name)-1] == '~' ) return isUNDEF;
+	if(file_name==NULL){ pRETURN_ERROR("passed in NULL path", isUNDEF); }
 
+	//GET REAL PATH
+	char* file_rp = realpath(file_name, NULL);
+		if( file_rp  == NULL){ return isUNDEF; }
+		if( file_rp[(int)(strlen(file_rp)-1) ] == '~' ){ free(file_rp); return isUNDEF; }
+
+	//GET STAT
 	struct stat dpstat;
-	if(lstat( file_name  , &dpstat ) < 0){ return isUNDEF; } //file doesn't exist
+	if(lstat( file_rp , &dpstat ) < 0){ free(file_rp); return isUNDEF; } //file doesn't exist
+	free(file_rp);
 
 	//check if DIR, REG, or LINK, and returns the respective number (defined in macro)
 	if(S_ISREG(dpstat.st_mode)) //directory or file

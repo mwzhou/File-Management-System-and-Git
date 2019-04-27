@@ -1,270 +1,279 @@
-#include <stdio.h> 
-#include <stdlib.h> 
-#include <string.h> 
+#include <stdio.h>
+//#include <iostream.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdbool.h>
 #include <errno.h>
 
-#include <unistd.h> 
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/sendfile.h>
 #include <sys/stat.h>
-#include <netinet/in.h> 
+#include <netinet/in.h>
 #include <string.h>
 #include <pthread.h>
 
 #include "fileHelperMethods.h"
 
+//TODO: put in header file
 //Struct for linked list of ip adresses of pthreads being created
-typedef struct pt_Node{
-	int id;
-	struct pt_Node *next;
-}pt_Node;
+typedef struct ProjectNode{
+	char* project_name;
+	struct ProjectNode *next;
+}ProjectNode;
 
-pt_Node* head = NULL;
-pthread_mutex_t lock;
 
-//Accepts project Name as an incoming request from client and sends back current version of project
-void* checkoutServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
+typedef struct ClientThread{
+	pthread_t client;
+	int curr_socket;
+}ClientThread;
 
-	//Get path of file
-	char* path= realpath(project_Name,NULL);
-	if(path==NULL) pRETURN_ERROR("File does not exist or memory has overloaded",NULL);
-	
-	//STEPS TO SENDING FILE TO CLIENT
-	int fileDescriptor = open(path,O_RDONLY);
-	if(fileDescriptor == -1) pRETURN_ERROR("Error opening File",NULL);
 
-	struct stat file_stat;
-	if(stat(path,&file_stat)<0) pRETURN_ERROR("Error retrieving stats of File",NULL);
 
-	char file_size[200];
-	sprintf(file_size,"%ld",file_stat.st_size);
-	ssize_t len = send(socket, file_size,sizeof(file_size),0);
-	if(len<0) pRETURN_ERROR("Error on sending file info",NULL);
+//GLOBALS////////////////////////////////////////////////////////////////
+int socket_c;
 
-	off_t offset,sent_bytes = 0;
-	off_t remain_data = file_stat.st_size;
-	while(((sent_bytes = sendfile(socket, fileDescriptor, &offset, BUFSIZ))>0) && (remain_data>0))
-		remain_data -= sent_bytes;
-	
-	return 0;
-}
+ClientThread clients[20];
+int num_clients = 0;
+/////////////////////////////////////////////////////////////////////////
 
-void* updateServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-	
-	return 0;
-}
+//Method to make a tar file of project to send over to client
+char* makeTar(char* proj_name, char* path_File){
 
-void* upgradeServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-	
-	return 0;
-}
+	printf("proj_name: %s\n", proj_name);
 
-void* commitServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-	
-	return 0;
-}
-
-void* pushServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-		if(readFrom<0) pRETURN_ERROR("read", NULL);
-	
-	return 0;
-}
-
-void* createServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-	
-	return 0;
-}
-
-void* destroyServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-	
-	return 0;
-}
-
-void* addServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-
-	//Accept file Name from Client
-	char file_Name[50] = {0};
-	readFrom = read( socket , file_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-
-	return 0;
-}
-
-void* removeServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-
-	//Accept file Name from Client
-	char file_Name[50] = {0};
-	readFrom = read( socket , file_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-
-	return 0;
-}
-
-void* currentversionServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-	
-	return 0;
-}
-
-void* historyServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-	
-	return 0;
-}
-
-void* rollbackServer(int socket){
-	
-	//Accept project Name from Client
-	char project_Name[50] = {0};
-	int readFrom = read( socket , project_Name, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-
-	//Accept version number from Client
-	char version_Num[50] = {0};
-	readFrom = read( socket , version_Num, 50); 
-	if(readFrom<0) pRETURN_ERROR("read", NULL);
-	int version = (int)atol(version_Num);
-	printf("%d\n",version);//TODO delete
-
-	return 0;
-}
-
-//Inserts IP addresses of each pthread into a node to allow us to close each of them individually at the end
-void insert(int ipAddress){
-	pt_Node *insert_info = (pt_Node*)malloc(sizeof(pt_Node));
-	insert_info->id = ipAddress;
-	insert_info->next = NULL;
-	if(head==NULL)
-		head = insert_info;
-	else{
-		pt_Node *temp = head;
-		while(temp->next!=NULL)
-			temp = temp->next;
-		temp->next = insert_info;
+	//Find Path of parent of current file
+	int i=0;
+	int pos = strlen(path_File);
+	int num = 0;
+	for(i=strlen(path_File)-1; i>=0; i--){
+		if(num==2)
+			break;
+		if(path_File[i] == '/')
+			num++;
+		pos--;
 	}
+
+	//Path of parent file
+	char* path_Store = substr(path_File, 0, pos+2);
+
+	int size_Path = strlen(path_Store) + strlen(proj_name) + strlen(".tgz")+1;
+	int size_New = strlen("tar czf ")+ size_Path + 1 + strlen(proj_name)+1;
+	
+	//Create return of new path for tar'd project
+	char* ret = (char*)malloc(size_Path* sizeof(char));
+	strcpy(ret, path_Store);
+	strcat(ret, proj_name);
+	strcat(ret,".tgz");
+	
+	
+	//Create the Tar command and run the command
+	char command[size_New];
+	strcpy(command, "tar czf ");
+	strcat(command, ret);
+	strcat(command, " ");
+	strcat(command, proj_name);
+	system(command);
+
+	return ret;
 }
 
+//checkout///////////////////////////////////////////////////////////////////////
+//Accepts project Name as an incoming request from client and sends back current version of project
+void* checkoutServer( int curr_sockid, char* proj_name ){
+
+	//Find path of file of project name	
+	char* path_File = realpath(proj_name,NULL);
+	//if(path_File==NULL) pRETURN_ERROR("File does not exist or memory has overloaded",-1); //TODO returns an int
+
+	char* to_read = makeTar(proj_name, path_File);
+
+	char* to_send = readFile(to_read);
+
+	return 0;
+}
+
+
+
+
+void* updateServer(  int curr_sockid, char* proj_name  ){
+
+	return 0;
+}
+
+
+
+
+void* upgradeServer(  int curr_sockid, char* proj_name  ){
+
+	return 0;
+}
+
+
+
+
+void* commitServer( int curr_sockid, char* proj_name ){
+
+
+	return 0;
+}
+
+
+
+void* pushServer(  int curr_sockid, char* proj_name  ){
+
+	return 0;
+}
+
+
+
+
+void* createServer(  int curr_sockid, char* proj_name ){
+
+	return 0;
+}
+
+
+void* destroyServer(  int curr_sockid, char* proj_name  ){
+
+	return 0;
+}
+
+
+void* addServer(  int curr_sockid, char* proj_name, char* file_name ){
+
+	return 0;
+}
+
+
+void* removeServer( int curr_sockid, char* proj_name, char* file_name  ){
+
+	return 0;
+}
+
+
+void* currentversionServer(  int curr_sockid, char* proj_name  ){
+
+	return 0;
+}
+
+
+void* historyServer( int curr_sockid, char* proj_name  ){
+
+	return 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////
+void* rollbackServer(  int curr_sockid, char* proj_name, char* version_num){
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////////
+
+
+
+//CONNECT//////////////////////////////////////////////////////////////////////
 //Handles accepting information sent in by the client
-void* connect_client(void *sockid){
-	//create socket
-	int socket = *(int*)sockid;
+void* connect_client(void* curr_socket ){
+	int curr_sockid = *(int*)curr_socket;
 
-	//READ from client
-	char buffer_Client[50] = {0};
+	//Recieve number of bytes to read from client
+	int num_bytes;
+	READ_AND_CHECKn( curr_sockid , &num_bytes, 4);
+	printf("recieved from client - num_bytes_toread: %d\n", num_bytes );
 
-	int readFrom = read( socket , buffer_Client, 50); 
-		if(readFrom<0) pRETURN_ERROR("read", NULL);
-	send(socket , "" , strlen("") , 0 );
+	//Recieve info from client
+	char* info_from_client = (char*)malloc( num_bytes +1);
+			if( info_from_client==NULL ) pEXIT_ERROR("malloc");
+	READ_AND_CHECKn( curr_sockid , info_from_client , num_bytes);
+	info_from_client[num_bytes] = '\0';
+	printf("recieved from client - info_from_client: %s\n", info_from_client);
 
-	//The following if statements call methods based on the request sent from the client	
-	if(strcmp(buffer_Client,"checkout")==0)
-		checkoutServer(socket);
-	else if(strcmp(buffer_Client,"update")==0)
-		updateServer(socket);
-	else if(strcmp(buffer_Client,"upgrade")==0)
-		upgradeServer(socket);
-	else if(strcmp(buffer_Client,"commit")==0)
-		commitServer(socket);
-	else if(strcmp(buffer_Client,"push")==0)
-		pushServer(socket);
-	else if(strcmp(buffer_Client,"create")==0)
-		createServer(socket);
-	else if(strcmp(buffer_Client,"destroy")==0)
-		destroyServer(socket);
-	else if(strcmp(buffer_Client,"add")==0)
-		addServer(socket);
-	else if(strcmp(buffer_Client,"remove")==0)
-		removeServer(socket);
-	else if(strcmp(buffer_Client,"currentversion")==0)
-		currentversionServer(socket);
-	else if(strcmp(buffer_Client,"history")==0)
-		historyServer(socket);
-	else if(strcmp(buffer_Client,"rollback")==0)
-		rollbackServer(socket);
 
-	//TODO delete(use as reference for methods)	
+	//Parse through info
+	char* command = strtok(info_from_client, ":");
+	char* project = strtok(NULL, ":");
+	char* s3 = strtok(NULL, ":"); //file or version_num if applicable
+
+
+
+	printf("Success on connection to client!\n");
+
+
+	//The following if statements call methods based on the request sent from the client
+	if(strcmp(command,"checkout")==0)
+		checkoutServer(curr_sockid, project);
+
+	else if(strcmp(command,"update")==0)
+		updateServer(curr_sockid, project);
+
+	else if(strcmp(command,"upgrade")==0)
+		upgradeServer(curr_sockid, project);
+
+	else if(strcmp(command,"commit")==0)
+		commitServer(curr_sockid, project);
+
+	else if(strcmp(command,"push")==0)
+		pushServer(curr_sockid, project);
+
+	else if(strcmp(command,"create")==0)
+		createServer(curr_sockid, project);
+
+	else if(strcmp(command,"destroy")==0)
+		destroyServer(curr_sockid, project);
+
+	else if(strcmp(command,"add")==0)
+		addServer(curr_sockid, project, s3);
+
+	else if(strcmp(command,"remove")==0)
+		removeServer(curr_sockid, project, s3);
+
+	else if(strcmp(command,"currentversion")==0)
+		currentversionServer(curr_sockid, project);
+
+	else if(strcmp(command,"history")==0)
+		historyServer(curr_sockid, project);
+
+	else if(strcmp(command,"rollback")==0)
+		rollbackServer(curr_sockid, project, s3);
+
+	//TODO delete(use as reference for methods)
 	//send to socket
-	//send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 ); 
+	//send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 );
 
 	//freeing and exiting
-	shutdown(socket,0);
-	shutdown(socket,1);
-	shutdown(socket,2);
-	if(close(socket) < 0) pRETURN_ERROR("Error on Close", NULL);
-	pthread_exit(NULL);
-	
+	/*
+	shutdown(socket_c,0);
+	shutdown(socket_c,1);
+	shutdown(socket_c,2);
+	*/
+	//if(close(socket_c) < 0) pRETURN_ERROR("Error on Close", NULL);
+	//pthread_exit(NULL);
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
+
 
 
 int main(int argc, char * argv[]){ //TODO: print out error message?
 	//Check for arguments
 	if(argc!=2) pRETURN_ERROR("Enter an argument containing the port number\n",-1);
-		
+
 	//getting port
 	int port = (int)atol(argv[1]);
-	
+
 	//server address
 	struct sockaddr_in address;
-	
+
 	//CREATING SOCKET
-	int sockid = socket(AF_INET, SOCK_STREAM, 0);
-		if(sockid == 0) pRETURN_ERROR("Error on socket creation",-1);
-		
+	socket_c = socket(AF_INET, SOCK_STREAM, 0);
+		if(socket_c == 0) pRETURN_ERROR("Error on socket creation",-1);
+	//initialize socket_c
+
+
 	//intitializes sizeof(address) zero-value bytes of address
 	bzero(&address,sizeof(address));
 
@@ -275,18 +284,29 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 
 	//BINDING to client
 	int addrlen = sizeof(address);
-	int status = bind(sockid, (struct sockaddr*) &address, addrlen);
+	int status = bind(socket_c, (struct sockaddr*) &address, addrlen);
 		if(status < 0) pRETURN_ERROR("Error on Bind",-1);
 
-	//LISTENto client
-	status = listen(sockid, 20);
+	//LISTENto client TODO: change to 20
+	status = listen(socket_c, 20);
 		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
 
+
 	//ACCEPT connecting and accepting message for client
-	int tempSocket;	
-	while((tempSocket = accept(sockid, (struct sockaddr*) &address, (socklen_t*)&addrlen))>0){
-		printf("Success on connection to client!\n");
-		
+	int curr_socket;
+	while( (curr_socket= accept(socket_c, (struct sockaddr*) &address, (socklen_t*)&addrlen)) >0 ){
+	 //add client thread to global
+	 	ClientThread curr_client = {-1, curr_socket};
+		clients[num_clients] =  curr_client; //TODO: change -1 to pthread
+
+		num_clients++; //TODO: add mutex
+		//connect to client
+		connect_client( (void*)&curr_socket );
+	}
+
+	//if accept failed
+	if(curr_socket<0) pRETURN_ERROR("Connection to client failed",-1);
+/*SHOULD BE INSIDE LOOP
 		//create new thread
 		pthread_t id;
 		status = pthread_create(&id, NULL, connect_client, (void*) &tempSocket);
@@ -294,15 +314,15 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 		//insert id into linked list
 		insert(id);
 	}
-	//if accept failed
-	if(tempSocket<0) pRETURN_ERROR("Connection to client failed",-1);
+*/
 
-
+/*
 	//SHUT DOWN AND RETURN
-	shutdown(sockid,0);
-	shutdown(sockid,1);
-	shutdown(sockid,2);	
-	if(close(sockid) < 0) pRETURN_ERROR("Error on Close",-1);
+	shutdown(socket_c,0);
+	shutdown(socket_c,1);
+	shutdown(socket_c,2);
+*/
+	if(close(socket_c) < 0) pRETURN_ERROR("Error on Close",-1);
 
 	return 0;
 }

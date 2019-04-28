@@ -89,11 +89,17 @@ returns the type of the string given in
 	isUNDEF - error
 **/
 FileType typeOfFile(char* file_name){
-	if(file_name ==NULL){ pRETURN_ERROR("passed in NULL path", isUNDEF); }
-	if( file_name[(int)strlen(file_name)-1] == '~' ) return isUNDEF;
+	if(file_name==NULL){ pRETURN_ERROR("passed in NULL path", isUNDEF); }
 
+	//GET REAL PATH
+	char* file_rp = realpath(file_name, NULL);
+		if( file_rp  == NULL){ return isUNDEF; }
+		if( file_rp[(int)(strlen(file_rp)-1) ] == '~' ){ free(file_rp); return isUNDEF; }
+
+	//GET STAT
 	struct stat dpstat;
-	if(stat( file_name  , &dpstat) < 0){ return isUNDEF; } //file doesn't exist
+	if(lstat( file_rp , &dpstat ) < 0){ free(file_rp); return isUNDEF; } //file doesn't exist
+	free(file_rp);
 
 	//check if DIR, REG, or LINK, and returns the respective number (defined in macro)
 	if(S_ISREG(dpstat.st_mode)) //directory or file
@@ -106,139 +112,26 @@ FileType typeOfFile(char* file_name){
 
 
 
-
-//STRING MANIPULATION methods/////////////////////////////////////////////////////////////////////
+//WRITING AND READING TO SOCKET///////////////////////////////////////////////////////
 
 /**
-To be used in fileCompressor.c recurse() to keep track of paths
-Combines a path name with a file name and returns the new path
-@returns: a copy of the new path
-returns: NULL if invalid, non-urgent issue
+send error to socket
 **/
-char* combinedPath(char* path_name, char* file_name){
-	if(path_name==NULL || file_name==NULL){ pRETURN_ERROR("cannot pass in NULL string into combinedPath()", NULL); }
-
-	//reallocate enough space
-	char* ret = (char*)malloc( 2 + strlen(path_name) + strlen(file_name) );
-		if(ret==NULL){ pEXIT_ERROR("malloc"); }
-
-	//copies and concatenates string
-	strcpy(ret, path_name);
-	strcat(ret, "/");
-	strcat(ret, file_name);
-
-	return ret;
+bool sendErrorSocket( int sockfd ){
+	int err = -1;
+	if( write(sockfd, &err,  4) < 0 ) pRETURN_ERROR("write()", false);
+	return true;
 }
 
 
 /**
-if extension is NULL, removes file_name's extension, otherwise, adds on the extension to file name and returns new file_name
+sends file to socket
 **/
-char* getNewExtensionAndPath( char* old_file_name, const char* extension ){
-	if( old_file_name == NULL){ pRETURN_ERROR("can't pass in NULL file_name", NULL); }
-	if( typeOfFile(old_file_name)!=isREG  ){ pRETURN_ERROR("file_name passed in is not a file", NULL); }
+bool sendFile( int sockfd, char* file_contents ){
+	//send num of bytes
+	int send_bytes = strlen(file_contents);
+	if( write(sockfd, &send_bytes,  4) < 0 ) pRETURN_ERROR("write()", false);
+	if( write(sockfd, file_contents, send_bytes) < 0 ) pRETURN_ERROR("write()", false);
 
-	//get real path of old_file_name
-	char* oldfname_path = realpath( old_file_name, NULL);
-		if( oldfname_path==NULL ){ pEXIT_ERROR("error getting real path of file"); }
-
-	//IF REMOVING THE EXTENSION
-	if(extension == NULL){
-		int chars_b4Dot = lengthBeforeLastOccChar( oldfname_path, '.');
-			if(chars_b4Dot==-1){ free(oldfname_path); pRETURN_ERROR("error, no extension to remove from.", NULL); }
-
-		//malloc enough space for file_name without the extension
-		char* ret = malloc( chars_b4Dot + 1 );
-			if( ret==NULL ){  pEXIT_ERROR("malloc"); } //malloc error
-		memcpy (ret, oldfname_path, chars_b4Dot); //copy string
-		ret[chars_b4Dot] = '\0';
-
-		free(oldfname_path);
-		return ret;
-
-	//IF ADDING THE EXTENSION
-	}else{
-		//realloc space  from oldfname_path for extension
-		char* ret = realloc( oldfname_path, (strlen(oldfname_path)  + (strlen(extension)) + 1) );
-			if(ret == NULL){ pEXIT_ERROR("realloc"); } //realloc error
-		//add the extension to the end of file_name
-		ret = strcat(ret , extension);
-
-		return ret;
-	}
-
-	free(oldfname_path);
-	return NULL; //if dot at first char
-
+	return true;
 }
-
-
-/**
-returns number of characters in s before the last occurrence of c
-returns -1 if hits a '/' character before the dot
-**/
-int lengthBeforeLastOccChar( char* s, char c){
-	//FINDING NUMBER OF CHARACTERS before the '.' if it exists, if no dot, it returns -1
-		int len = strlen(s);
-		int i;
-		for(i = len; i>=0; i--){
-			if( s[i] == '/'){
-				return -1;
-			}else if ( s[i] == c){
-				return i;
-			}
-		}
-
-		return -1;
-}
-
-
-/**
-To be used in fileCompressor.c writeEncodings() to keep track of encodings of each node in a huffman tree.
-Appends a character to the end of a string, returns a malloced new string with a character appended to the end
-@params: char* prev_str = string to append to
-		 char add_c = character to add
-@return: new_string(malloced in different memory)
-Note: does NOT free prev_str
-**/
-char* appendCharToString( char* prev_str , char add_c){
-	//Variables
-		int len_prev = (prev_str == NULL)? 0 : strlen(prev_str); //length of prev_str, length is 0 if prev_str was NULL
-		char* new_str = (char*)malloc( len_prev + 2 ); //string to return: malloc one byte larger than prev_str + space for the terminating char
-			if( new_str==NULL ){ pEXIT_ERROR("malloc()"); }
-
-	//CREATING NEW ENCODING
-		if(prev_str!= NULL)  //copy old encoding into new encoding (if old encoding not NULL)
-			strcpy( new_str , prev_str);
-		new_str[len_prev] = add_c;
-		new_str[len_prev+1] = '\0'; //terminating character
-
-	return new_str;
-}
-
-
-/**
-To be used in fileCompressor.c for decompress.
-returns a subtring of s from the start_index to start_index+length of substring
-returns NULL if start_ind+length-1 > strlen(s) or could not get a substring
-**/
-char* substr(char* s, size_t start_ind, size_t length){
-	if( s==NULL||start_ind<0||length<0 ){ pRETURN_ERROR("faulty parameters", NULL); }
-	if( (start_ind+length-1)  > strlen(s) ){ pRETURN_ERROR("start_ind+length-1 cannot be larger than the string passed in",NULL); }
-
-	char* ret = (char*)malloc(length); //malloc string to return
-		if(ret==NULL){ pEXIT_ERROR("malloc"); }
-
-	memcpy(ret, s+start_ind, length); //copies s+start to length into ret
-	ret[length - 1] = '\0';
-
-	return ret;
-}
-
-
-
-
-
-
-
-

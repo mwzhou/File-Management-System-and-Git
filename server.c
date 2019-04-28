@@ -1,5 +1,4 @@
 #include <stdio.h>
-//#include <iostream.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -14,7 +13,7 @@
 #include <string.h>
 #include <pthread.h>
 
-#include "fileHelperMethods.h"
+/*#include "fileHelperMethods.h"
 
 //TODO: put in header file
 //Struct for linked list of ip adresses of pthreads being created
@@ -27,7 +26,10 @@ typedef struct ProjectNode{
 typedef struct ClientThread{
 	pthread_t client;
 	int curr_socket;
-}ClientThread;
+}ClientThread;*/
+
+
+#include "server.h"
 
 
 
@@ -37,6 +39,7 @@ int socket_c;
 ClientThread clients[20];
 int num_clients = 0;
 /////////////////////////////////////////////////////////////////////////
+
 
 //Method to make a tar file of project to send over to client
 char* makeTar(char* proj_name, char* path_File){
@@ -77,11 +80,33 @@ char* makeTar(char* proj_name, char* path_File){
 	system(command);
 
 	return ret;
-}
 
+}
+////////////////////////////////////////////////////////////////////////
+
+
+//[3.2] UPDATE//////////////////////////////////////////////////////////////////////
+
+/*
+update
+*/
+void* updateServer(  int curr_sockid, char* proj_name  ){
+	printf("%d] Entered command: update\n", curr_sockid);
+
+	//error check
+		if( typeOfFile(proj_name)!=isDIR ){ sendErrorSocket(curr_sockid); pRETURN_ERROR("project doesn't exist on server",NULL); }
+		if( typeOfFile(".Manifest") != isREG ){  sendErrorSocket(curr_sockid); printf("error\n"); pRETURN_ERROR(".Manifest file doesn't exist on server",NULL); }
+
+	//send manifest file to client
+		char* manifest_str = readFile(".Manifest"); //TODO: tar
+			if(manifest_str == NULL){ sendErrorSocket(curr_sockid); return NULL; }
+		sendFile( curr_sockid, manifest_str);
+}
 //checkout///////////////////////////////////////////////////////////////////////
 //Accepts project Name as an incoming request from client and sends back current version of project
 void* checkoutServer( int curr_sockid, char* proj_name ){
+
+  printf("%d] Entered command: checkout\n", curr_sockid);
 
 	//Find path of file of project name	
 	char* path_File = realpath(proj_name,NULL);
@@ -91,24 +116,53 @@ void* checkoutServer( int curr_sockid, char* proj_name ){
 
 	char* to_send = readFile(to_read);
 
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////
+void* upgradeServer(  int curr_sockid, char* proj_name  ){
+	//error check
+		if( typeOfFile(proj_name)!=isDIR ){ sendErrorSocket(curr_sockid); pRETURN_ERROR("project doesn't exist on server",NULL); }
+
+	//TODO:
+		int num_bytes;
+		READ_AND_CHECKn(curr_sockid, &num_bytes, 4);
+			if(num_bytes<=0){ pRETURN_ERROR("Error on Server side", NULL); }
+
 
 
 
 
 void* updateServer(  int curr_sockid, char* proj_name  ){
 
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////
+void* commitServer( int curr_sockid, char* proj_name ){
+
+
 
 
 
 
 void* upgradeServer(  int curr_sockid, char* proj_name  ){
 
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////
+void* pushServer(  int curr_sockid, char* proj_name  ){
+
 
 
 
@@ -116,62 +170,88 @@ void* upgradeServer(  int curr_sockid, char* proj_name  ){
 void* commitServer( int curr_sockid, char* proj_name ){
 
 
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////
+void* createServer(  int curr_sockid, char* proj_name ){
+
 
 
 
 void* pushServer(  int curr_sockid, char* proj_name  ){
 
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////
+void* destroyServer(  int curr_sockid, char* proj_name  ){
+
 
 
 
 
 void* createServer(  int curr_sockid, char* proj_name ){
 
-	return 0;
-}
-
-
-void* destroyServer(  int curr_sockid, char* proj_name  ){
 
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
 
 
+
+////////////////////////////////////////////////////////////////////////
 void* addServer(  int curr_sockid, char* proj_name, char* file_name ){
 
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
 
 
+
+////////////////////////////////////////////////////////////////////////
 void* removeServer( int curr_sockid, char* proj_name, char* file_name  ){
 
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
 
 
+////////////////////////////////////////////////////////////////////////
 void* currentversionServer(  int curr_sockid, char* proj_name  ){
 
+
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
 
 
+////////////////////////////////////////////////////////////////////////
 void* historyServer( int curr_sockid, char* proj_name  ){
 
+
+
 	return 0;
 }
+////////////////////////////////////////////////////////////////////////
+
 
 
 ////////////////////////////////////////////////////////////////////////
 void* rollbackServer(  int curr_sockid, char* proj_name, char* version_num){
 
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
-
 
 
 //CONNECT//////////////////////////////////////////////////////////////////////
@@ -179,65 +259,71 @@ void* rollbackServer(  int curr_sockid, char* proj_name, char* version_num){
 void* connect_client(void* curr_socket ){
 	int curr_sockid = *(int*)curr_socket;
 
+	printf("%d] Success on connection to client %d!\n", curr_sockid, num_clients);
+
 	//Recieve number of bytes to read from client
-	int num_bytes;
-	READ_AND_CHECKn( curr_sockid , &num_bytes, 4);
-	printf("recieved from client - num_bytes_toread: %d\n", num_bytes );
+		int num_bytes;
+		READ_AND_CHECKn( curr_sockid , &num_bytes, 4);
+			//if error
+			if(num_bytes <= 0){ printf("\tError on client side\n"); return 0; }
+		printf("\tRecieved from client - num_bytes_toread: %d\n", num_bytes );
+
 
 	//Recieve info from client
-	char* info_from_client = (char*)malloc( num_bytes +1);
-			if( info_from_client==NULL ) pEXIT_ERROR("malloc");
-	READ_AND_CHECKn( curr_sockid , info_from_client , num_bytes);
-	info_from_client[num_bytes] = '\0';
-	printf("recieved from client - info_from_client: %s\n", info_from_client);
+		char* info_from_client = (char*)malloc(num_bytes + 1);
+				if( info_from_client==NULL ) pEXIT_ERROR("malloc");
+		READ_AND_CHECKn( curr_sockid , info_from_client , num_bytes);
+		info_from_client[num_bytes] = '\0';
+
+	//Parse through info and store in variables
+		char delim[1]; delim[0] = (char)176;
+		char* command = strtok(info_from_client, delim);
+		char* proj_name = strtok(NULL, delim);
+		char* s3 = strtok(NULL, delim); //file or version_num if applicable
+		printf("\tRecieved from client - command:%s  proj_name:%s  extra_info?:%s\n", command, proj_name, s3);
 
 
-	//Parse through info
-	char* command = strtok(info_from_client, ":");
-	char* project = strtok(NULL, ":");
-	char* s3 = strtok(NULL, ":"); //file or version_num if applicable
-
-
-
-	printf("Success on connection to client!\n");
 
 
 	//The following if statements call methods based on the request sent from the client
 	if(strcmp(command,"checkout")==0)
-		checkoutServer(curr_sockid, project);
+		checkoutServer(curr_sockid, proj_name);
 
 	else if(strcmp(command,"update")==0)
-		updateServer(curr_sockid, project);
+		updateServer(curr_sockid, proj_name);
 
 	else if(strcmp(command,"upgrade")==0)
-		upgradeServer(curr_sockid, project);
+		upgradeServer(curr_sockid, proj_name);
 
 	else if(strcmp(command,"commit")==0)
-		commitServer(curr_sockid, project);
+		commitServer(curr_sockid, proj_name);
 
 	else if(strcmp(command,"push")==0)
-		pushServer(curr_sockid, project);
+		pushServer(curr_sockid, proj_name);
 
 	else if(strcmp(command,"create")==0)
-		createServer(curr_sockid, project);
+		createServer(curr_sockid, proj_name);
 
 	else if(strcmp(command,"destroy")==0)
-		destroyServer(curr_sockid, project);
+		destroyServer(curr_sockid, proj_name);
 
 	else if(strcmp(command,"add")==0)
-		addServer(curr_sockid, project, s3);
+		addServer(curr_sockid, proj_name, s3);
 
 	else if(strcmp(command,"remove")==0)
-		removeServer(curr_sockid, project, s3);
+		removeServer(curr_sockid, proj_name, s3);
 
 	else if(strcmp(command,"currentversion")==0)
-		currentversionServer(curr_sockid, project);
+		currentversionServer(curr_sockid, proj_name);
 
 	else if(strcmp(command,"history")==0)
-		historyServer(curr_sockid, project);
+		historyServer(curr_sockid, proj_name);
 
 	else if(strcmp(command,"rollback")==0)
-		rollbackServer(curr_sockid, project, s3);
+		rollbackServer(curr_sockid, proj_name, s3);
+
+	else
+		printf("\tError on client side\n");
 
 	//TODO delete(use as reference for methods)
 	//send to socket
@@ -249,7 +335,11 @@ void* connect_client(void* curr_socket ){
 	shutdown(socket_c,1);
 	shutdown(socket_c,2);
 	*/
-	//if(close(socket_c) < 0) pRETURN_ERROR("Error on Close", NULL);
+
+
+	//close
+	if(close(socket_c) < 0) pRETURN_ERROR("Error on Close", NULL);
+
 	//pthread_exit(NULL);
 
 	return 0;
@@ -271,6 +361,10 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 	//CREATING SOCKET
 	socket_c = socket(AF_INET, SOCK_STREAM, 0);
 		if(socket_c == 0) pRETURN_ERROR("Error on socket creation",-1);
+
+	//reuse socket
+	if (setsockopt(socket_c, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0)  pRETURN_ERROR("setsockopt(SO_REUSEADDR) failed",-1);
+
 	//initialize socket_c
 
 

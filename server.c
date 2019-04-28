@@ -13,7 +13,24 @@
 #include <string.h>
 #include <pthread.h>
 
+/*#include "fileHelperMethods.h"
+
+//TODO: put in header file
+//Struct for linked list of ip adresses of pthreads being created
+typedef struct ProjectNode{
+	char* project_name;
+	struct ProjectNode *next;
+}ProjectNode;
+
+
+typedef struct ClientThread{
+	pthread_t client;
+	int curr_socket;
+}ClientThread;*/
+
+
 #include "server.h"
+
 
 
 //GLOBALS////////////////////////////////////////////////////////////////
@@ -24,14 +41,46 @@ int num_clients = 0;
 /////////////////////////////////////////////////////////////////////////
 
 
-//[3.1] CHECKOUT////////////////////////////////////////////////////////////////////////
+//Method to make a tar file of project to send over to client
+char* makeTar(char* proj_name, char* path_File){
 
-/*
-Accepts project name as an incoming request from client and sends back current version of project
-*/
-void* checkoutServer( int curr_sockid, char* proj_name ){
-	printf("%d] Entered command: checkout\n", curr_sockid);
-	return 0;
+	printf("proj_name: %s\n", proj_name);
+
+	//Find Path of parent of current file
+	int i=0;
+	int pos = strlen(path_File);
+	int num = 0;
+	for(i=strlen(path_File)-1; i>=0; i--){
+		if(num==2)
+			break;
+		if(path_File[i] == '/')
+			num++;
+		pos--;
+	}
+
+	//Path of parent file
+	char* path_Store = substr(path_File, 0, pos+2);
+
+	int size_Path = strlen(path_Store) + strlen(proj_name) + strlen(".tgz")+1;
+	int size_New = strlen("tar czf ")+ size_Path + 1 + strlen(proj_name)+1;
+	
+	//Create return of new path for tar'd project
+	char* ret = (char*)malloc(size_Path* sizeof(char));
+	strcpy(ret, path_Store);
+	strcat(ret, proj_name);
+	strcat(ret,".tgz");
+	
+	
+	//Create the Tar command and run the command
+	char command[size_New];
+	strcpy(command, "tar czf ");
+	strcat(command, ret);
+	strcat(command, " ");
+	strcat(command, proj_name);
+	system(command);
+
+	return ret;
+
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +101,21 @@ void* updateServer(  int curr_sockid, char* proj_name  ){
 		char* manifest_str = readFile(".Manifest"); //TODO: tar
 			if(manifest_str == NULL){ sendErrorSocket(curr_sockid); return NULL; }
 		sendFile( curr_sockid, manifest_str);
+}
+//checkout///////////////////////////////////////////////////////////////////////
+//Accepts project Name as an incoming request from client and sends back current version of project
+void* checkoutServer( int curr_sockid, char* proj_name ){
+
+  printf("%d] Entered command: checkout\n", curr_sockid);
+
+	//Find path of file of project name	
+	char* path_File = realpath(proj_name,NULL);
+	//if(path_File==NULL) pRETURN_ERROR("File does not exist or memory has overloaded",-1); //TODO returns an int
+
+	char* to_read = makeTar(proj_name, path_File);
+
+	char* to_send = readFile(to_read);
+
 
 	return 0;
 }
@@ -68,6 +132,13 @@ void* upgradeServer(  int curr_sockid, char* proj_name  ){
 		READ_AND_CHECKn(curr_sockid, &num_bytes, 4);
 			if(num_bytes<=0){ pRETURN_ERROR("Error on Server side", NULL); }
 
+
+
+
+
+void* updateServer(  int curr_sockid, char* proj_name  ){
+
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -75,6 +146,13 @@ void* upgradeServer(  int curr_sockid, char* proj_name  ){
 
 ////////////////////////////////////////////////////////////////////////
 void* commitServer( int curr_sockid, char* proj_name ){
+
+
+
+
+
+
+void* upgradeServer(  int curr_sockid, char* proj_name  ){
 
 
 	return 0;
@@ -85,6 +163,14 @@ void* commitServer( int curr_sockid, char* proj_name ){
 ////////////////////////////////////////////////////////////////////////
 void* pushServer(  int curr_sockid, char* proj_name  ){
 
+
+
+
+
+void* commitServer( int curr_sockid, char* proj_name ){
+
+
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -93,6 +179,12 @@ void* pushServer(  int curr_sockid, char* proj_name  ){
 ////////////////////////////////////////////////////////////////////////
 void* createServer(  int curr_sockid, char* proj_name ){
 
+
+
+
+void* pushServer(  int curr_sockid, char* proj_name  ){
+
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -100,21 +192,32 @@ void* createServer(  int curr_sockid, char* proj_name ){
 ////////////////////////////////////////////////////////////////////////
 void* destroyServer(  int curr_sockid, char* proj_name  ){
 
+
+
+
+
+void* createServer(  int curr_sockid, char* proj_name ){
+
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
+
 
 
 ////////////////////////////////////////////////////////////////////////
 void* addServer(  int curr_sockid, char* proj_name, char* file_name ){
 
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
 
 
+
 ////////////////////////////////////////////////////////////////////////
 void* removeServer( int curr_sockid, char* proj_name, char* file_name  ){
+
 
 	return 0;
 }
@@ -124,6 +227,8 @@ void* removeServer( int curr_sockid, char* proj_name, char* file_name  ){
 ////////////////////////////////////////////////////////////////////////
 void* currentversionServer(  int curr_sockid, char* proj_name  ){
 
+
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -132,24 +237,28 @@ void* currentversionServer(  int curr_sockid, char* proj_name  ){
 ////////////////////////////////////////////////////////////////////////
 void* historyServer( int curr_sockid, char* proj_name  ){
 
+
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
+
 
 
 ////////////////////////////////////////////////////////////////////////
 void* rollbackServer(  int curr_sockid, char* proj_name, char* version_num){
 
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
-
 
 
 //CONNECT//////////////////////////////////////////////////////////////////////
 //Handles accepting information sent in by the client
 void* connect_client(void* curr_socket ){
 	int curr_sockid = *(int*)curr_socket;
+
 	printf("%d] Success on connection to client %d!\n", curr_sockid, num_clients);
 
 	//Recieve number of bytes to read from client
@@ -227,8 +336,10 @@ void* connect_client(void* curr_socket ){
 	shutdown(socket_c,2);
 	*/
 
+
 	//close
 	if(close(socket_c) < 0) pRETURN_ERROR("Error on Close", NULL);
+
 	//pthread_exit(NULL);
 
 	return 0;
@@ -250,6 +361,7 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 	//CREATING SOCKET
 	socket_c = socket(AF_INET, SOCK_STREAM, 0);
 		if(socket_c == 0) pRETURN_ERROR("Error on socket creation",-1);
+
 	//reuse socket
 	if (setsockopt(socket_c, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0)  pRETURN_ERROR("setsockopt(SO_REUSEADDR) failed",-1);
 

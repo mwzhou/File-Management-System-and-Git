@@ -38,6 +38,7 @@ void writeConfigureFile(char* IP, char* port){
 		if(file<0) pEXIT_ERROR("writing configure file");
 
 	//WRITE IP and Port info to file
+
 	WRITE_AND_CHECKe(file, IP, strlen(IP));
 	WRITE_AND_CHECKe(file, "\n", 1);
 	WRITE_AND_CHECKe(file, port, strlen(port));
@@ -64,6 +65,7 @@ void initializeIPandPort(char** IP_addr, int* PORT_addr){
 
 
 
+
 //[3.1] CHECKOUT//////////////////////////////////////////////////////////
 void checkoutClient(char* proj_name){ //TODO
 	printf("%d] Entered command: checkout\n", sockfd);
@@ -80,6 +82,7 @@ void checkoutClient(char* proj_name){ //TODO
 
 //[3.2] UPDATE//////////////////////////////////////////////////////////////
 void updateClient(char* proj_name){
+////////////////////////////////////////////////////////////////////////////
 	printf("%d] Entered command: update\n", sockfd);
 	//send info to server
 		sendArgsToServer("update", proj_name, NULL);
@@ -183,11 +186,12 @@ void removeClient(char* proj_name, char* file_name){
 
 
 
+=======
+
 //[3.10] CURRENT VERSION/////////////////////////////////////////////////////
 void currentVersionClient(char* proj_name){
 	printf("%d] Entered command: currentversion\n", sockfd);
 	sendArgsToServer("currentversion", proj_name, NULL);
-
 	return;
 }
 ////////////////////////////////////////////////////////////////////////////
@@ -198,7 +202,6 @@ void currentVersionClient(char* proj_name){
 void historyClient(char* proj_name){
 	printf("%d] Entered command: history\n", sockfd);
 	sendArgsToServer("history", proj_name, NULL);
-
 	return;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -215,6 +218,7 @@ void rollbackClient(char* proj_name, char* version){
 	return;
 }
 //////////////////////////////////////////////////////////////////////////////
+
 
 
 
@@ -243,7 +247,6 @@ void sendArgsToServer(char* s1, char* s2, char* s3){
 	}
 
 }
-
 
 //CONNECT//////////////////////////////////////////////////////////////
 
@@ -316,51 +319,69 @@ int main(int argc, char** argv){
 
 	//[3.4] commit
 	}else if (strcmp(command,"commit")==0){
+
 		if(argc!=3) { sendErrorSocket(sockfd); pEXIT_ERROR("commit must be followed by 1 argument: project name"); }
+
 		commitClient(argv[2]);
 
 	//[3.5] push
 	}else if (strcmp(command,"push")==0){
+
 		if(argc!=3) { sendErrorSocket(sockfd); pEXIT_ERROR("push must be followed by 1 argument: project name"); }
+
 		pushClient(argv[2]);
 
 	//[3.6] create
 	}else if (strcmp(command,"create")==0){
+
 		if(argc!=3) { sendErrorSocket(sockfd); pEXIT_ERROR("create must be followed by 1 argument: project name"); }
+
 		createClient(argv[2]);
 
 	//[3.7] destroy
 	}else if (strcmp(command,"destroy")==0){
+
 		if(argc!=3) { sendErrorSocket(sockfd); pEXIT_ERROR("destroy must be followed by 1 argument: project name"); }
+
 		destroyClient(argv[2]);
 
 	//[3.8] add
 	}else if (strcmp(command,"add")==0){
+
 		if(argc!=4) { sendErrorSocket(sockfd); pEXIT_ERROR("destroy must be followed by 2 arguments: project name and file name"); }
+
 		addClient(argv[2], argv[3]);
 
 	//[3.9] remove
 	}else if (strcmp(command,"remove")==0){
+
 		if(argc!=4) { sendErrorSocket(sockfd); pEXIT_ERROR("remove must be followed by 2 arguments: project name and file name"); }
+
 		removeClient(argv[2], argv[3]);
 
 	//[3.10] currentversion
 	}else if (strcmp(command,"currentversion")==0){
+
 		if(argc!=3) { sendErrorSocket(sockfd); pEXIT_ERROR("currentversion must be followed by 1 argument: project name"); }
+
 		currentVersionClient(argv[2]);
 
 	//[3.11] history
 	}else if (strcmp(command,"history")==0){
+
 		if(argc!=3) { sendErrorSocket(sockfd); pEXIT_ERROR("history must be followed by 1 argument: project name"); }
+
 		historyClient(argv[2]);
 
 	//[3.12] rollback
 	}else if (strcmp(command,"rollback")==0){
+
 		if(argc!=4) { sendErrorSocket(sockfd); pEXIT_ERROR("rollback must be followed by 2 arguments: project name, rollback"); }
 		rollbackClient(argv[2], argv[3]);
 
 	}else{
 		sendErrorSocket(sockfd); pEXIT_ERROR("did not enter in a valid command (refrence ReadMe for valid commands)");
+
 	}
 
 

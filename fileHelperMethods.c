@@ -222,6 +222,8 @@ char* generateHash (char* file_name){
 	for(i=0; i<SHA256_DIGEST_LENGTH; i++){
 		sprintf(output+(i*2), "%02x", hash[i]);
 	}
+	
+	free(buffer);
 
 	//returning hashcode generated
 	return output;

@@ -10,6 +10,7 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 #include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <openssl/sha.h>
 #include <sys/stat.h>
 #include<sys/types.h>
 #include"fileHelperMethods.h"
@@ -135,3 +136,94 @@ bool sendFile( int sockfd, char* file_contents ){
 
 	return true;
 }
+
+/**
+Given the path of a project/file, Scan through directory recursively (go through directories within directories as well) for every file and add to Manifest
+**/
+bool createManifest (char* file_Path){
+
+	//Pointer for directory
+	struct dirent *de;
+
+	//Find path of current directory
+	int ind_slash = lengthBeforeLastOccChar( file_Path , '/'); //number of chars before the last '/'
+	char* currFile_dir = substr( file_Path , 0 , ind_slash+1 );
+	//printf("currentPath is: %s\n",currFile_dir);
+
+	//Opening the directory of path given
+	DIR *dr = opendir(file_Path);
+	if(!dr)
+		return false;
+
+	//enter directory of give file
+	chdir(file_Path);
+	//printf("enetring Path: %s\n",file_Path);
+
+	//variable where hash_code will be stored
+	char* hash_code;
+
+	//reads through files and directories
+	while((de = readdir(dr)) !=NULL){
+		if(strcmp(de->d_name,".")!=0 && strcmp(de->d_name,"..")!=0){
+			//Finding name of file and cending path back into method incase of being a directory
+			char* currFile = de->d_name;
+			char* path_of_file = realpath(currFile, NULL);
+			//If not a directory, generates a hash for the file
+			bool file_or_dir = createManifest(path_of_file);
+			if(file_or_dir == false){
+				//printf("hash being created for file: %s\n", currFile);
+				hash_code = generateHash(currFile);
+				printf("%s\n\n", hash_code);
+			}
+		}
+	}
+
+	//change back to parent directory to continue searching for files and free
+	chdir(currFile_dir);
+	free(currFile_dir);
+	
+	//close and return
+	closedir(dr);
+	return true;	
+		
+}
+
+/**
+Generate hash code for given file
+**/
+
+char* generateHash (char* file_name){
+
+	//Find size offile in bytes	
+	int file_size = sizeOfFile(file_name);
+
+	char* buffer = (char*) malloc (file_size*sizeof(char));
+	int bytes;
+
+	//Object to hold state of Hash
+	SHA256_CTX ctx;
+	unsigned char hash[SHA256_DIGEST_LENGTH];
+	SHA256_Init(&ctx);
+	
+	//Setting up and opening file
+	int fp;
+	fp = open(file_name, O_RDONLY);
+	if(fp < 0) { pRETURN_ERROR("error on fopen",false);}
+
+	//Updatting hash code
+	while ((bytes = read(fp,buffer, file_size))){
+		SHA256_Update(&ctx, buffer, bytes);
+	}
+	SHA256_Final(hash, &ctx);
+
+	char* output = (char*)malloc(sizeof(char)*60);
+
+	int i;
+	for(i=0; i<SHA256_DIGEST_LENGTH; i++){
+		sprintf(output+(i*2), "%02x", hash[i]);
+	}
+
+	//returning hashcode generated
+	return output;
+}
+

@@ -40,4 +40,7 @@
 	bool sendErrorSocket( int sockfd );
 	bool sendFile( int sockfd, char* file_contents );
 
+	char* generateHash (char* file_name);
+	bool createManifest (char* file_Path);
+
 #endif

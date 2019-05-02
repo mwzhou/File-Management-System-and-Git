@@ -14,8 +14,7 @@
 
 
 int main(int argc, char * argv[]){
-	//printf("%s\n", realpath("./",NULL));
-	//makeTar("lol", "client.h");
+	createManifest("r1");
 
 	return 0;
 

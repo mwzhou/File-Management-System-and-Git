@@ -21,12 +21,6 @@
 int sockfd;
 
 
-//MACROS///////////////////////////////////////////////////////////////////////
-#define recieveStringSocket(sockfd) recieveStringSocketst( sockfd, "Server")
-#define sendStringSocket(sockfd, str) sendStringSocketst(sockfd, str, "Server")
-/////////////////////////////////////////////////////////////////////////
-
-
 
 //CONFIGURE//////////////////////////////////////////////////////////////
 /**
@@ -76,13 +70,23 @@ void checkoutClient(char* proj_name){ //TODO
 	printf("%d] Entered command: checkout\n", sockfd);
 	//check valid arguments
 		if ( typeOfFile(proj_name)== isDIR ){ sendErrorSocket(sockfd); pEXIT_ERROR("project name already exists on client side"); }
-	//send to server
+
+	//send arguments to server
 		sendArgsToServer("checkout", proj_name, NULL);
 
+	/*recieving project and untaring it in root*/
+	char* proj_tar = recieveTarFile( sockfd, "./");
+		if(proj_tar == NULL){ pEXIT_ERROR("error recieving directory"); }
+
+	/*make backup directory*/
+	char* backup_proj_dir = concatString(proj_name, ".bak");
+	if( mkdir( backup_proj_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ pEXIT_ERROR("mkdir()"); }
+
+	free(proj_tar);
+	free(backup_proj_dir);
 	return;
 }
 ////////////////////////////////////////////////////////////////////////
-
 
 
 //[3.2] UPDATE//////////////////////////////////////////////////////////////
@@ -93,10 +97,15 @@ void updateClient(char* proj_name){
 		sendArgsToServer("update", proj_name, NULL);
 
 	//recieving manifest file
-		char* manifest_str = recieveStringSocket(sockfd);
-			if(manifest_str == NULL){ pRETURN_ERRORvoid("error recieving .Manifest file"); }
+		char* store_manifest_dir = concatString(proj_name, ".bak");  //make path to store manifest file recieved from Server
+
+		char* manifest_path = recieveTarFile(sockfd, store_manifest_dir);
+			free(store_manifest_dir);
+			if( manifest_path == NULL ){ pRETURN_ERRORvoid("recieving Manifest File"); }
 
 	//TODO: operations
+
+
 
 	return;
 }
@@ -303,6 +312,7 @@ int main(int argc, char** argv){
 
 	//CONNECT TO SERVER
 		connectToServer();
+
 
 	//COMMANDS
 	//[3.1] checkout

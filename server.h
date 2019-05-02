@@ -29,8 +29,10 @@ typedef struct ClientThread{
 	int curr_socket;
 }ClientThread;
 
-
-
+//linked List Methods
+bool addNode(char* proj_name);
+bool delNode(char* proj_name);
+ProjectNode* search(char* proj_name);
 
 
 #endif

@@ -20,8 +20,6 @@
 //GLOBAL
 int sockfd;
 
-
-
 //CONFIGURE//////////////////////////////////////////////////////////////
 /**
 writes .configure file in directory of executable with IP and PORT info
@@ -96,6 +94,7 @@ void checkoutClient(char* proj_name){ //TODO
 //[3.2] UPDATE//////////////////////////////////////////////////////////////
 void updateClient(char* proj_name){
 	printf("%d] Entered command: update\n", sockfd);
+
 	sendArgsToServer("update", proj_name, NULL);
 
 	/**ERROR CHECK**/
@@ -150,6 +149,7 @@ void updateClient(char* proj_name){
 //[3.3] UPGRADE//////////////////////////////////////////////////////////////
 void upgradeClient(char* proj_name){
 	printf("%d] Entered command: upgrade\n", sockfd);
+
 	sendArgsToServer("upgrade", proj_name, NULL);
 
 	/*ERROR CHECK*/
@@ -174,7 +174,9 @@ void upgradeClient(char* proj_name){
 //[3.4] COMMIT//////////////////////////////////////////////////////////////
 void commitClient(char* proj_name){
 	printf("%d] Entered command: commit\n", sockfd);
-	sendArgsToServer("commit", proj_name, NULL);
+
+	//sending arguments to server
+		sendArgsToServer("commit", proj_name, NULL);
 
 	/*ERROR CHECK*/
 		//waiting for signal if valid project on server
@@ -236,6 +238,11 @@ void destroyClient(char* proj_name){
 	printf("%d] Entered command: destroy\n", sockfd);
 	sendArgsToServer("destroy", proj_name, NULL);
 
+	//recieving success message
+	char* success = recieveFileSocket(sockfd, true);
+	printf("%s\n",success);
+	if( success == NULL){ pRETURN_ERRORvoid( "recieving success message in destroyClient"); }
+
 	return;
 }
 ////////////////////////////////////////////////////////////////////////////
@@ -245,7 +252,34 @@ void destroyClient(char* proj_name){
 //[3.8] ADD//////////////////////////////////////////////////////////////
 void addClient(char* proj_name, char* file_name){
 	printf("%d] Entered command: add\n", sockfd);
-	sendArgsToServer("add", proj_name, file_name);
+
+	//check if project exists on client side or not	
+	if( typeOfFile(proj_name)!=isDIR ){ pEXIT_ERROR("Project does not exist in client!"); }
+
+	//Get paths of manifest file and file to write into manifest file
+	char* manifest_path = combinedPath(proj_name, ".Manifest");
+	int manifest_fd = open( manifest_path, O_WRONLY|O_APPEND, (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH) ); //writing in manifest file
+		if(manifest_fd < 0){ fprintf( stderr, "file:%s\n",file_name ); pRETURN_ERRORvoid("tried to open file flags: (O_WRONLY|O_APPEND)"); }
+
+	if(manifest_fd<0) { pRETURN_ERRORvoid("Error on opening file"); }
+	
+	//find path of file and generate hashcode for it	
+	char* new_path = combinedPath(proj_name, file_name);
+	char* hash_code = generateHash(new_path);
+
+	//Write info into manifet file for new file that is added	
+	WRITE_AND_CHECKv( manifest_fd, new_path, strlen(new_path));
+	WRITE_AND_CHECKv( manifest_fd, "\t", 1);
+	WRITE_AND_CHECKv( manifest_fd, "1", 1);
+	WRITE_AND_CHECKv( manifest_fd, "\t", 1);
+	WRITE_AND_CHECKv( manifest_fd, hash_code, strlen(hash_code));
+	WRITE_AND_CHECKv( manifest_fd, "\n", 1);
+	
+	//freeing and closing	
+	free(hash_code);
+	free(new_path);
+	close(manifest_fd);
+	free(manifest_path);
 
 	return;
 }
@@ -255,9 +289,45 @@ void addClient(char* proj_name, char* file_name){
 
 //[3.9] REMOVE//////////////////////////////////////////////////////////////
 void removeClient(char* proj_name, char* file_name){
-	printf("%d] Entered command: remove\n", sockfd);
-	sendArgsToServer("remove", proj_name, file_name);
 
+	printf("%d] Entered command: remove\n", sockfd);
+
+	//check valid arguments
+	if ( typeOfFile(proj_name)!= isDIR ){ pEXIT_ERROR("project name does not exist on client side"); }
+
+		//Finding path of manifest file
+	char* manifest_path = combinedPath(proj_name, ".Manifest");
+
+	//finding relative path of file_name
+	char* file_path = combinedPath(proj_name, file_name);
+
+	//line to delete	
+	int line = extractLine(manifest_path, file_path);
+
+	//Files to read and rewrite in
+	FILE* srcFile = fopen(manifest_path, "r");
+	FILE* tempFile = fopen("deleteFile.tmp","w");
+
+	//inserting into tempFile not include line to delete
+	int lineSize = 1024;
+	char buffer[lineSize];
+	int count = 1;
+	while((fgets(buffer, lineSize, srcFile) )!=NULL){
+		if(line!=count)
+			fputs(buffer,tempFile);
+		count++;
+	}
+
+	//replace old file with new file	
+	remove(manifest_path);
+	rename("deleteFile.tmp",manifest_path);
+
+	//free and close
+	free(manifest_path);
+	free(file_path);
+	fclose(srcFile);
+	fclose(tempFile);
+	
 	return;
 }
 ////////////////////////////////////////////////////////////////////////////

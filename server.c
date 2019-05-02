@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -22,14 +23,71 @@ int overall_socket;
 ClientThread clients[20];
 int num_clients = 0;
 
+ProjectNode *head = NULL;
+
+//////Linked List Methods////////////////////////////////////////////////////////////////
+
+
+
+//initializes head and adds node to start of linked list
+bool addNode(char* proj_name){
+	ProjectNode *temp = malloc(sizeof(ProjectNode));
+	temp->project_name = proj_name;
+	//initialize mutex lock 
+	int ret = pthread_mutex_init(&temp->lock, NULL);
+	if(ret<0) {pRETURN_ERROR("Mutex Initialize", NULL); }
+
+	if(head==NULL){
+		head = temp;
+		temp->next = NULL;
+	}
+	else{
+		temp->next = head;
+		head = temp;
+	}
+	return true;
+}
+
+
+//Deletes a node, returs true if found and deleted, returns false if not found
+bool delNode(char* proj_name){
+	ProjectNode* prev = NULL;
+	ProjectNode *temp = head;
+	while((temp!=NULL) && (strcmp(temp->project_name,proj_name)!=0)){
+		prev = temp;
+		temp = temp->next;
+	}
+	if(prev==NULL && (strcmp(temp->project_name,proj_name)==0)){
+		head = temp->next;
+		return true;
+	}
+	else if(temp->next==NULL && (strcmp(temp->project_name,proj_name)==0)){
+		prev->next  = NULL;
+		return true;
+	}
+	else if((strcmp(temp->project_name,proj_name)==0)){
+		prev->next = temp->next;
+		return true;
+	}
+	return false;
+}
+
+
+//Returns node of project when given project name to find
+ProjectNode* search(char* proj_name){
+	ProjectNode *temp = head;
+	while(temp!=NULL){
+		if(strcmp(temp->project_name,proj_name)==0)
+			return temp;;
+	}
+	return NULL;
+}
+
 
 
 
 //[3.1] CHECKOUT////////////////////////////////////////////////////////////////////////
 
-/*
-Accepts project name as an incoming request from client and sends back current version of project
-*/
 void* checkoutServer( int sockfd, char* proj_name ){
 	printf("\n\tEntered command: checkout\n");
 
@@ -47,12 +105,15 @@ void* checkoutServer( int sockfd, char* proj_name ){
 		if ( sendTarFile(sockfd, proj_name, bakup_proj_path) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
 			free(bakup_proj_path);
 
+	free(manifest_path);
+*/
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
 
 
 //[3.2] UPDATE//////////////////////////////////////////////////////////////////////
+
 
 /*
 update
@@ -79,6 +140,7 @@ void* updateServer(  int sockfd, char* proj_name  ){
 		//TODO: operations
 
 
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -93,13 +155,6 @@ void* upgradeServer(  int sockfd, char* proj_name  ){
 			if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
 			//check if .Update exists on Client
 			if( receiveSig(sockfd) == false) pRETURN_ERROR(".Update doesn't exist on Client",NULL);
-
-
-		/*OPERATIONS*/
-
-
-		//TODO:
-
 
 	return 0;
 }
@@ -126,6 +181,7 @@ void* commitServer( int sockfd, char* proj_name ){
 //[3.5] PUSH//////////////////////////////////////////////////////////////
 void* pushServer(  int sockfd, char* proj_name  ){
 
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -136,6 +192,7 @@ void* createServer(  int sockfd, char* proj_name ){
 	printf("\n\tEntered command: create\n");
 	/*error check*/
 	if( typeOfFile(proj_name)==isDIR ){ sendErrorSocket(sockfd); pRETURN_ERROR("project already exists on server",NULL); }
+
 
 	/*make directory*/
 	if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ pRETURN_ERROR("mkdir()", NULL); }
@@ -160,12 +217,6 @@ void* createServer(  int sockfd, char* proj_name ){
 	free(backup_proj_dir);
 	free(manifest_path);
 	close(manifest_fd);
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-//[3.7] DESTROY//////////////////////////////////////////////////////////////
-void* destroyServer(  int sockfd, char* proj_name  ){
 
 	return 0;
 }
@@ -173,6 +224,50 @@ void* destroyServer(  int sockfd, char* proj_name  ){
 
 
 ////////////////////////////////////////////////////////////////////////
+void* destroyServer(  int curr_sockid, char* proj_name  ){
+
+	//node to lock
+	//ProjectNode* lock_Node = search(proj_name);
+	//TODO lock repository, expire pending commits
+
+	//Pointer for directory
+	struct dirent *de;
+
+	if( typeOfFile(proj_name)!=isDIR ){pRETURN_ERROR(("Project does not exist"), NULL); }
+
+	//Opening the directory of path given
+	DIR *dr = opendir(proj_name);
+		if(!dr) pRETURN_ERROR("not a directory", false);
+
+	while((de = readdir(dr)) !=NULL){
+		if(strcmp(de->d_name,".")==0 || strcmp(de->d_name,"..")==0){ continue; }
+
+		//Finding name of file and cending path back into method incase of being a directory
+		char* new_path = combinedPath(proj_name, de->d_name);
+		int np_type = typeOfFile(new_path);
+
+		if( np_type  == isDIR ){
+			//if file is directory, recurse to enter
+			destroyServer(curr_sockid, new_path);
+		}
+		else{
+			unlink(new_path);
+		}
+
+		//freeing		
+		free(new_path);
+	}
+	if ( sendFileSocket(curr_sockid, "Files and directories have been deleted") == false);
+
+	//closing, and returning
+	closedir(dr);
+	return 0;
+}
+////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////
+
 void* addServer(  int sockfd, char* proj_name, char* file_name ){
 
 	return 0;
@@ -181,6 +276,7 @@ void* addServer(  int sockfd, char* proj_name, char* file_name ){
 
 
 ////////////////////////////////////////////////////////////////////////
+
 void* removeServer( int sockfd, char* proj_name, char* file_name  ){
 
 	return 0;
@@ -189,6 +285,7 @@ void* removeServer( int sockfd, char* proj_name, char* file_name  ){
 
 
 ////////////////////////////////////////////////////////////////////////
+
 void* currentversionServer(  int sockfd, char* proj_name  ){
 
 	return 0;
@@ -198,7 +295,6 @@ void* currentversionServer(  int sockfd, char* proj_name  ){
 
 ////////////////////////////////////////////////////////////////////////
 void* historyServer( int sockfd, char* proj_name  ){
-
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -294,7 +390,9 @@ void* connect_client(void* curr_socket ){
 	*/
 
 	//close
+
 	if(close(sockfd) < 0) pRETURN_ERROR("Error on Close", NULL);
+
 	//pthread_exit(NULL);
 
 	return 0;
@@ -336,6 +434,7 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 		if(status < 0) pRETURN_ERROR("Error on Bind",-1);
 
 	//LISTENto client
+
 	status = listen(overall_socket, 20);
 		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
 

@@ -23,6 +23,30 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 //FILE methods/////////////////////////////////////////////////////////////////////
 
 /**
+goes through file line by line and returns the line_num w/ instance of target
+**/
+int extractLine(char* fpath, char* target){
+    //Vars
+    FILE * fp;
+    char * line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    fp = fopen( fpath , "r");
+        if (fp == NULL) pEXIT_ERROR("fopen");
+    
+    int line_num = 1;
+    while ((read = getline(&line, &len, fp)) != -1) {
+        if( strstr(line, target) != NULL){ free(line); return line_num; }
+        line_num++;
+    }
+
+    fclose(fp);
+    if(line) free(line);
+    return -1;
+}
+
+/**
 returns size of file in bytes
 returns -1 on error
 **/
@@ -85,6 +109,7 @@ int openFileW(char* file_name){
 
 
 
+
 /**
 returns the type of the string given in
 @params: char* name - file_name or path_name
@@ -134,7 +159,6 @@ char* substr(char* s, size_t start_ind, size_t length){
 	return ret;
 }
 
-
 /**
 To be used to keep track of paths
 Combines a path name with a file name and returns the new path
@@ -155,6 +179,7 @@ char* combinedPath(char* path_name, char* file_name){
 
 	return ret;
 }
+
 
 
 /**
@@ -195,6 +220,7 @@ int lengthBeforeLastOccChar( char* s, char c){
 }
 
 
+
 /**
 returns true if file name ends in .hcz
 **/
@@ -209,7 +235,6 @@ bool endsWithTGZ(char* file_name){
 
 	return false;
 }
-
 
 
 //WRITING AND READING TO SOCKET///////////////////////////////////////////////////////
@@ -255,6 +280,7 @@ sends string to socket
 bool sendStringSocketst( int sockfd, char* str, char* sock_type ){
 
 	//send num of bytes
+
 	int send_bytes = strlen(str);
 	if( write(sockfd, &send_bytes,  4) < 0 ) pRETURN_ERROR("write()", false);
 	printf("\tsent %d number of bytes to %s\n",send_bytes, sock_type);
@@ -286,8 +312,6 @@ char* recieveStringSocketst( int sockfd, char* sock_type ){
 
 		return str;
 }
-
-
 
 /**
 note: file_name must just be the project_name and the file_name, not the path
@@ -324,6 +348,7 @@ bool sendFileSocketst( int sockfd, char* file_name, char* sock_type ){
 
 
 /**
+
 recieves file for socket and writes it
 **/
 char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){

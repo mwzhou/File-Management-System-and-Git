@@ -7,6 +7,7 @@
 //Struct for linked list of ip adresses of pthreads being created
 typedef struct ProjectNode{
 	char* project_name;
+	pthread_mutex_t lock;
 	struct ProjectNode *next;
 }ProjectNode;
 

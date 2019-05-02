@@ -17,6 +17,7 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/sendfile.h>
 
 
 //FILE methods/////////////////////////////////////////////////////////////////////
@@ -158,9 +159,8 @@ char* substr(char* s, size_t start_ind, size_t length){
 	return ret;
 }
 
-
 /**
-To be used in fileCompressor.c recurse() to keep track of paths
+To be used to keep track of paths
 Combines a path name with a file name and returns the new path
 @returns: a copy of the new path
 returns: NULL if invalid, non-urgent issue
@@ -180,6 +180,29 @@ char* combinedPath(char* path_name, char* file_name){
 	return ret;
 }
 
+
+
+/**
+To be used in fileCompressor.c recurse() to keep track of paths
+Combines a path name with a file name and returns the new path
+@returns: a copy of the new path
+returns: NULL if invalid, non-urgent issue
+**/
+char* concatString(char* s1, char* s2){
+	if(s1==NULL || s2==NULL){ pRETURN_ERROR("cannot pass in NULL strings", NULL); }
+
+	//reallocate enough space
+	char* ret = (char*)malloc( 1 + strlen(s1) + strlen(s2) );
+		if(ret==NULL){ pEXIT_ERROR("malloc"); }
+
+	//copies and concatenates string
+	strcpy(ret, s1);
+	strcat(ret, s2);
+
+	return ret;
+}
+
+
 /**
 returns number of characters in s before the last occurrence of c
 **/
@@ -198,16 +221,57 @@ int lengthBeforeLastOccChar( char* s, char c){
 
 
 
+/**
+returns true if file name ends in .hcz
+**/
+bool endsWithTGZ(char* file_name){
+	if(file_name==NULL){ pRETURN_ERROR("null string",false);}
+	int len = strlen(file_name);
+	if(len<4) //minimum length is 4, i.e.: ".tgz""
+		return false;
+
+	if( file_name[len-4]=='.' && file_name[len-3]=='t' && file_name[len-2]=='g' && file_name[len-1]=='z' ) //ends with .hcz
+		return true;
+
+	return false;
+}
+
+
 //WRITING AND READING TO SOCKET///////////////////////////////////////////////////////
 
+/*
+sends signal to socket
+*/
+bool sendSig( int sockfd, bool err_cmp){
+	if( err_cmp ){
+		sendNumSocket( sockfd, -1);
+		return false;
+	}else{
+		sendNumSocket( sockfd, SUCCESS_SEND);
+		return true;
+	}
+}
+
+
+/*
+recieves signal from socket
+*/
+bool receiveSig( int sockfd ){
+	int num;
+	if( read(sockfd, &num,  4) < 0 ) pRETURN_ERROR("write()", false);
+	return (num== SUCCESS_SEND)? true: false;
+}
+
+
 /**
-send error to socket
+send number to socket
 **/
-bool sendErrorSocket( int sockfd ){
-	int err = -1;
-	if( write(sockfd, &err,  4) < 0 ) pRETURN_ERROR("write()", false);
+bool sendNumSocket( int sockfd, int num ){
+	int num_send = num;
+	if( write(sockfd, &num_send,  4) < 0 ) pRETURN_ERROR("write()", false);
 	return true;
 }
+
 
 
 /**
@@ -216,9 +280,10 @@ sends string to socket
 bool sendStringSocketst( int sockfd, char* str, char* sock_type ){
 
 	//send num of bytes
-	printf("\tsending number of bytes to %s\n", sock_type);
+
 	int send_bytes = strlen(str);
 	if( write(sockfd, &send_bytes,  4) < 0 ) pRETURN_ERROR("write()", false);
+	printf("\tsent %d number of bytes to %s\n",send_bytes, sock_type);
 
 	//sending string
 	printf("\tsending string to %s\n", sock_type);
@@ -236,7 +301,7 @@ char* recieveStringSocketst( int sockfd, char* sock_type ){
 	//recieve num bytes
 		int num_bytes;
 		READ_AND_CHECKe(sockfd, &num_bytes, 4);
-			if(num_bytes<=0){ printf("\tError on %s side\n",  sock_type); return NULL; }
+			if(num_bytes<=0){ printf("\n\tError on %s side recieving string\n",  sock_type); return NULL; }
 		printf("\tRecieved %d num_bytes to read from %s\n", num_bytes,  sock_type);
 
 	//recieve string contents
@@ -248,115 +313,174 @@ char* recieveStringSocketst( int sockfd, char* sock_type ){
 		return str;
 }
 
-
 /**
 note: file_name must just be the project_name and the file_name, not the path
 **/
 bool sendFileSocketst( int sockfd, char* file_name, char* sock_type ){
-	//SEND file_name
+
+	/*SEND file_name*/
 	if ( sendStringSocketst(sockfd, file_name, sock_type) == false ){ return false; }
 
-	//get size of file
-	int size_file = sizeOfFile(file_name);
-		if(size_file <0){ sendErrorSocket(sockfd);  pRETURN_ERROR("retrieving size of file",false);}
-	//write size of file to socket
-	printf("\tSending size of file to %s\n", sock_type);
-	if( write(sockfd, &size_file ,  4) < 0 )  pRETURN_ERROR("write()", false);
+	/*Open file*/
+		int send_file = open(file_name, O_RDONLY);
+			if(send_file<0){pRETURN_ERROR("open", false);}
+
+	/* Sending file size */
+		int file_size = sizeOfFile(file_name);
+			if(file_size<0) pRETURN_ERROR("size", false);
+		//write file size
+		if( write(sockfd, &file_size,  4) < 0 ) pRETURN_ERROR("write()", false);
+		printf("\tsent %d bytes for the file_size\n", file_size);
+
+	/*Sending File*/
+		off_t offset = 0;
+		int sent_bytes = 0;
+		int remain_data = file_size;
+		/* Sending file data */
+		while ( (remain_data > 0) && ((sent_bytes = sendfile(sockfd, send_file , &offset, 1024)) > 0) ){
+					remain_data -= sent_bytes;
+		}
+
+	close(send_file);
+	return true;
+}
 
 
-	//Open file
-	FILE* fp = fopen(file_name ,"rb");
 
-	//writes to file
-	int len;
-	char buf[1024] = {0};
-	printf("\tWriting file to %s\n", sock_type);
-	while( (len = fread(buf, 1, 1024, fp)) > 0  ){
-		if( send(sockfd ,buf,strlen(buf),0) < 0 ) { printf("Error sending file to %s\n", sock_type); }
-	}
+/**
 
-	fclose( fp );
+recieves file for socket and writes it
+**/
+char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
+	/*RECIEVE FILE name*/
+		char* file_name = recieveStringSocketst(sockfd, sock_type);
+			if( file_name == NULL ){ pRETURN_ERROR( "Failed to recieve file name", NULL);}
+
+		//Isolate tha file_name (no /)
+			int  ind_dash = lengthBeforeLastOccChar(file_name, '/');
+				if( ind_dash != -1) file_name += (ind_dash+1);
+
+	/*path to write to*/
+		char* f_path = combinedPath(dir_to_store, file_name);
+
+	//recieve FILE
+		FILE* received_file = fopen( f_path , "wb");
+			if (received_file == NULL){ printf("\n\tf_path: %s\n", f_path); free(f_path);  pRETURN_ERROR( "Failed to open file", NULL); }
+
+		//recieve file_size
+		int file_size;
+		READ_AND_CHECKn(sockfd, &file_size, 4);
+			if( file_size<=0){ printf("\n\tError on %s side recieving file\n",  sock_type); return NULL; }
+		printf("\tRecieved %d num_bytes of file_size to read from %s\n", file_size,  sock_type);
+
+		int len;
+		char buffer[1024];
+		int remain_data = file_size;
+		while ( ((len = recv(sockfd, buffer, 1024, 0)) > 0) && (remain_data > 0) ){
+						 fwrite(buffer, 1, len, received_file);
+						 remain_data -= len;
+		}
+
+	fclose(received_file);
+	return f_path;
+}
+
+
+
+//Tar Methods///////////////////////////////////////////////////////////////////////
+
+/**
+tar a file and send it to socket
+**/
+bool sendTarFilest( int sockfd, char* file_path, char* dir_to_store, char* sock_type ){
+	char* tar_fp =  makeTar( file_path, dir_to_store );
+		if(tar_fp==NULL){ return false; }
+
+	if( sendFileSocketst( sockfd, tar_fp, sock_type ) == false){ return false; }
+
+	remove( tar_fp );
+	free(tar_fp);
 	return true;
 }
 
 
 /**
 **/
-char* recieveFileSocketst( int sockfd, bool modify_fname, char* sock_type ){
-	//RECIEVE FILE name
-		char* file_name = recieveStringSocketst(sockfd, sock_type);
-		char* ret_path = NULL;
-
-		//path to write to
-			//if modify file_name
-			if(modify_fname){
-				ret_path = (char*)malloc( strlen(file_name) + strlen(sock_type) + 2 );
-					strcpy( ret_path , sock_type );
-					strcat( ret_path, "." );
-					strcat( ret_path, file_name );
-					free(file_name);
-			//don't modify file_name
-			}else{
-				ret_path = file_name;
-			}
+char* recieveTarFilest( int sockfd, char* dir_to_store , char* sock_type){
+	char* tar_filepath = recieveFileSocketst(sockfd, dir_to_store, sock_type);
+		if( tar_filepath == NULL) return NULL;
 
 
-	//recieve num bytes OF FILE
-		int num_bytes;
-		READ_AND_CHECKe(sockfd, &num_bytes, 4);
-			if(num_bytes<0){ free(ret_path);  printf("\tError from %s side reading num_bytes of file\n",  sock_type); return NULL; }
+	char* filepath = unTar( tar_filepath );
+	free( tar_filepath );
+		if( filepath == NULL ) return NULL;
 
-	//recieve FILE
-		FILE* received_file = fopen( ret_path , "wb");
-			if (received_file == NULL){ free(ret_path); pRETURN_ERROR( "Failed to open file", NULL); }
-
-	//Write info to file
-		ssize_t len;
-		char buf[1024] = {0};
-		while ( (len = recv( sockfd ,buf, 1024 ,0)) > 0 ){
-					buf[len] = 0;
-	        if ( (fwrite(buf,1,strlen(buf), received_file)) < 0){ pRETURN_ERROR("writing", NULL); }
-		}
-		printf("\tRecieved file from %s\n", sock_type);
-
-	fclose(received_file);
-	return ret_path;
+	return filepath;
 }
 
 
+/**
+untars file and removes tgz file from file_directory
+returns name of untarred file
+**/
+char* unTar( char* tar_filepath ){
+	//tar -xzf .Manifest.tgz
+	if(endsWithTGZ(tar_filepath)==false ){ pRETURN_ERROR("doesn't end in tgz",NULL); }
 
+	/*Isolate file  directory*/
+	char* file_dir;
+	int ind_slash = lengthBeforeLastOccChar( tar_filepath , '/'); //number of chars before the last '/'
 
-//Tar Methods///////////////////////////////////////////////////////////////////////
+	if(ind_slash == -1) //if no /
+		file_dir = "./";
+	else
+		file_dir = substr( tar_filepath, 0 , ind_slash+1 );
 
-bool sendTarFile(){
-	return false;
+	/*get system command*/
+	char* sys_cmd = (char*)malloc( strlen("tar -C ") + strlen(file_dir) + strlen(" -xzf ")+ strlen(tar_filepath)+1);
+		strcpy( sys_cmd, "tar -C ");
+		strcat( sys_cmd, file_dir);
+		strcat( sys_cmd, " -xzf ");
+		strcat( sys_cmd, tar_filepath);
+		//free
+			if(ind_slash != -1) free(file_dir);
+
+	//system call
+		if( system(sys_cmd) < 0){ pRETURN_ERROR("system call", NULL); }
+		//free
+		free( sys_cmd );
+
+	//remove tar file
+		remove( tar_filepath );
+		return substr( tar_filepath, 0 , strlen(tar_filepath)-3);
 }
+
 
 /**
 Tars a project given and returns the path of the tarred file
-@params: proj_name : project of where to put the file (in its backup folder)
+@params: dir_to_store: path to store tar file in
 				 file_path : path of file to tar (if no path, will assume it's in the root directory)
 **/
-/*
-char* makeTar(char* file_name, char* path_to_store){
-	if( proj_name==NULL || file_name ==NULL || typeOfFile(path_to_store)!= isDIR || typeOfFile(file_name) == isUNDEF ){ pRETURN_ERROR("entered in invalid arguments", NULL); }
+char* makeTar(char* file_path, char* dir_to_store){
+	if( dir_to_store ==NULL || file_path ==NULL || typeOfFile(dir_to_store)!= isDIR || typeOfFile(file_path) == isUNDEF ){ pRETURN_ERROR("entered in invalid arguments", NULL); }
 
 	//DECLARE VARIABLES
 		//get the root directory's real path
 		char* root_dir = realpath("./",NULL);
 			if(root_dir==NULL){ pRETURN_ERROR("realpath", NULL); }
+
 		//get project's real path
-		char* proj_rp = realpath(proj_name,NULL);
-			if( proj_rp ==NULL){ pRETURN_ERROR("realpath", NULL); }
+		char* dir_to_store_rp = realpath(dir_to_store , NULL);
+			if( dir_to_store_rp == NULL){ pRETURN_ERROR("realpath", NULL); }
 
 		char* file_dir;
 		char* file_name;
-		char* proj_bak_name;
 		char* tar_file_path;
-		char* sys_cmd; //tar cfz <proj_name_path>.bak/<file_name>.tgz <file_name>
+		char* sys_cmd; //tar cfz <dir_to_store>/<file_name>.tgz <file_name>
 
 
-//GETTING THE SYSTEM COMMEND
+//GETTING THE SYSTEM COMMAND
+	//GETTING FILE NAME AND FILE DIR
 	//find out if there is a '/' in file_name, if not, it will assume that the file is in the root dir
 		int ind_slash = lengthBeforeLastOccChar( file_path , '/'); //number of chars before the last '/'
 
@@ -370,30 +494,21 @@ char* makeTar(char* file_name, char* path_to_store){
 			file_dir = substr( file_path , 0 , ind_slash+1 );
 			file_name =  file_path+(ind_slash+1); //Note: NOT malloced
 			//change the directory to where the file is
-			if( chdir(file_dir) < 0 ){ free(file_dir); free(root_dir); free(proj_rp); pRETURN_ERROR("did not pass in valid file path", NULL); }
+			if( chdir(file_dir) < 0 ){ free(file_dir); free(root_dir); free(dir_to_store_rp); pRETURN_ERROR("did not pass in valid file path", NULL); }
 			//free
 			free( file_dir );
 		}
 
 
-	//get path of the backup_project directory
-		proj_bak_name = (char*)malloc( strlen(proj_rp) + 6 );
-			//cpy info
-			strcpy( proj_bak_name, proj_rp);
-			strcat( proj_bak_name, ".bak/");
-			//free
-			free(proj_rp);
-
-
 	//gets path of tar file
-		tar_file_path =  (char*)malloc( strlen(proj_bak_name) + strlen(file_name) + strlen(".tgz") + 1);
+		tar_file_path =  (char*)malloc( strlen(dir_to_store_rp) + strlen(file_name) + strlen(".tgz") + 2);
 			//cpy info
-			strcpy( tar_file_path, proj_bak_name);
+			strcpy( tar_file_path, dir_to_store_rp);
+			strcat( tar_file_path, "/");
 			strcat( tar_file_path, file_name);
 			strcat( tar_file_path, ".tgz");
 			//free
-			free( proj_bak_name );
-
+			free(dir_to_store_rp);
 
 	//constructing sys_cmd
 		sys_cmd =  (char*)malloc(strlen("tar cfz ") + strlen(tar_file_path) + 1 + strlen(file_name) + 1 );
@@ -404,7 +519,7 @@ char* makeTar(char* file_name, char* path_to_store){
 			strcat( sys_cmd, file_name );
 
 	//RUN SYSTEM COMMAND
-		system(sys_cmd);
+		if( system(sys_cmd)< 0 ){free( sys_cmd ); free( root_dir ); pRETURN_ERROR("system", NULL); }
 			//free
 			free( sys_cmd );
 
@@ -418,28 +533,30 @@ free( root_dir );
 return tar_file_path;
 
 }
-*/
-//////Creating Manifest File////////////////////////////////////////////////////////////////
 
+
+
+////////////////////////////////////////////////////////////////////////
 
 /**
+creates manifest file of a whole project, returns path of file (malloced)
 **/
-bool createManifest(char* proj_name){
+char* createManifest(char* proj_name){
 	//create manifest file
 	char* manifest_path = combinedPath(proj_name, ".Manifest");
 	int manifest_fd = openFileW( manifest_path );
+		if( manifest_fd < 0){ pRETURN_ERROR("open", NULL); }
 
 	//write, if failed, remove file and return false
 	if( writeToManifest( proj_name, manifest_fd ) == false ){
 		REMOVE_AND_CHECK(manifest_path);
 		free(manifest_path);
 		close(manifest_fd);
-		return false;
+		return NULL;
 	}
 
-	free(manifest_path);
 	close(manifest_fd);
-	return true;
+	return manifest_path;
 }
 
 
@@ -512,7 +629,7 @@ char* generateHash (char* file_name){
 
 	//Setting up and opening file
 	int fp = open(file_name, O_RDONLY);
-		if(fp < 0) { pRETURN_ERROR("error on fopen", NULL);}
+		if(fp < 0) { pRETURN_ERROR("fopen", NULL);}
 
 	//Updatting hash code
 	while ((bytes = read(fp,buffer, file_size))){
@@ -533,6 +650,3 @@ char* generateHash (char* file_name){
 	//returning hashcode generated
 	return output;
 }
-
-
-////////////////////////////////////////////////////////////////////////

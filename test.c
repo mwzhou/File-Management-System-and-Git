@@ -13,6 +13,7 @@
 #include"fileHelperMethods.h"
 
 
+
 void add( char* proj_name , char* file_name ){
 
 	//Get paths of manifest file and file to write into manifest file
@@ -47,6 +48,8 @@ int main(int argc, char * argv[]){
 	//createManifest("Asst1");
 
 	add("Asst1","happy.c");
+
+
 
 	return 0;
 

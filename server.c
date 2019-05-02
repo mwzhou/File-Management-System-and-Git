@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -13,24 +14,7 @@
 #include <string.h>
 #include <pthread.h>
 
-/*#include "fileHelperMethods.h"
-
-//TODO: put in header file
-//Struct for linked list of ip adresses of pthreads being created
-typedef struct ProjectNode{
-	char* project_name;
-	struct ProjectNode *next;
-}ProjectNode;
-
-
-typedef struct ClientThread{
-	pthread_t client;
-	int curr_socket;
-}ClientThread;*/
-
-
 #include "server.h"
-
 
 
 //GLOBALS////////////////////////////////////////////////////////////////
@@ -38,49 +22,83 @@ int socket_c;
 
 ClientThread clients[20];
 int num_clients = 0;
+
+ProjectNode *head = NULL;
+
+
+//MACROS///////////////////////////////////////////////////////////////////////
+#define recieveStringSocket(sockfd) recieveStringSocketst( sockfd, "Client")
+#define sendStringSocket(sockfd, str) sendStringSocketst(sockfd, str, "Client")
+#define recieveFileSocket( sockfd, modify_fname ) recieveFileSocketst( sockfd, modify_fname, "Client" )
+#define sendFileSocket( sockfd, file_name )  sendFileSocketst(sockfd, file_name, "Client")
 /////////////////////////////////////////////////////////////////////////
 
+//////Linked List Methods////////////////////////////////////////////////////////////////
 
-//Method to make a tar file of project to send over to client
-char* makeTar(char* proj_name, char* path_File){
 
-	printf("proj_name: %s\n", proj_name);
+//initializes head and adds node to start of linked list
+bool addNode(char* proj_name){
+	ProjectNode *temp = malloc(sizeof(ProjectNode));
+	temp->project_name = proj_name;
+	//initialize mutex lock 
+	int ret = pthread_mutex_init(&temp->lock, NULL);
+	if(ret<0) {pRETURN_ERROR("Mutex Initialize", NULL); }
 
-	//Find Path of parent of current file
-	int i=0;
-	int pos = strlen(path_File);
-	int num = 0;
-	for(i=strlen(path_File)-1; i>=0; i--){
-		if(num==2)
-			break;
-		if(path_File[i] == '/')
-			num++;
-		pos--;
+	if(head==NULL){
+		head = temp;
+		temp->next = NULL;
 	}
+	else{
+		temp->next = head;
+		head = temp;
+	}
+	return true;
+}
 
-	//Path of parent file
-	char* path_Store = substr(path_File, 0, pos+2);
 
-	int size_Path = strlen(path_Store) + strlen(proj_name) + strlen(".tgz")+1;
-	int size_New = strlen("tar czf ")+ size_Path + 1 + strlen(proj_name)+1;
-	
-	//Create return of new path for tar'd project
-	char* ret = (char*)malloc(size_Path* sizeof(char));
-	strcpy(ret, path_Store);
-	strcat(ret, proj_name);
-	strcat(ret,".tgz");
-	
-	
-	//Create the Tar command and run the command
-	char command[size_New];
-	strcpy(command, "tar czf ");
-	strcat(command, ret);
-	strcat(command, " ");
-	strcat(command, proj_name);
-	system(command);
+//Deletes a node, returs true if found and deleted, returns false if not found
+bool delNode(char* proj_name){
+	ProjectNode* prev = NULL;
+	ProjectNode *temp = head;
+	while((temp!=NULL) && (strcmp(temp->project_name,proj_name)!=0)){
+		prev = temp;
+		temp = temp->next;
+	}
+	if(prev==NULL && (strcmp(temp->project_name,proj_name)==0)){
+		head = temp->next;
+		return true;
+	}
+	else if(temp->next==NULL && (strcmp(temp->project_name,proj_name)==0)){
+		prev->next  = NULL;
+		return true;
+	}
+	else if((strcmp(temp->project_name,proj_name)==0)){
+		prev->next = temp->next;
+		return true;
+	}
+	return false;
+}
 
-	return ret;
 
+//Returns node of project when given project name to find
+ProjectNode* search(char* proj_name){
+	ProjectNode *temp = head;
+	while(temp!=NULL){
+		if(strcmp(temp->project_name,proj_name)==0)
+			return temp;;
+	}
+	return NULL;
+}
+
+
+//[3.1] CHECKOUT////////////////////////////////////////////////////////////////////////
+
+/*
+Accepts project name as an incoming request from client and sends back current version of project
+*/
+void* checkoutServer( int curr_sockid, char* proj_name ){
+	printf("%d] Entered command: checkout\n", curr_sockid);
+	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -94,29 +112,24 @@ void* updateServer(  int curr_sockid, char* proj_name  ){
 	printf("%d] Entered command: update\n", curr_sockid);
 
 	//error check
+		//check if project name exists
 		if( typeOfFile(proj_name)!=isDIR ){ sendErrorSocket(curr_sockid); pRETURN_ERROR("project doesn't exist on server",NULL); }
-		if( typeOfFile(".Manifest") != isREG ){  sendErrorSocket(curr_sockid); printf("error\n"); pRETURN_ERROR(".Manifest file doesn't exist on server",NULL); }
+		//check if manifest exists
+		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
+		if( typeOfFile(manifest_path) != isREG ){  free(manifest_path); sendErrorSocket(curr_sockid); pRETURN_ERROR(".Manifest file doesn't exist in project on server",NULL); }
 
 	//send manifest file to client
-		char* manifest_str = readFile(".Manifest"); //TODO: tar
-			if(manifest_str == NULL){ sendErrorSocket(curr_sockid); return NULL; }
-		sendFile( curr_sockid, manifest_str);
-}
-//checkout///////////////////////////////////////////////////////////////////////
-//Accepts project Name as an incoming request from client and sends back current version of project
-void* checkoutServer( int curr_sockid, char* proj_name ){
-
-  printf("%d] Entered command: checkout\n", curr_sockid);
-
-	//Find path of file of project name	
-	char* path_File = realpath(proj_name,NULL);
-	//if(path_File==NULL) pRETURN_ERROR("File does not exist or memory has overloaded",-1); //TODO returns an int
-
-	char* to_read = makeTar(proj_name, path_File);
-
-	char* to_send = readFile(to_read);
+		if ( sendFileSocket(curr_sockid, manifest_path) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
 
 
+/*
+		char* manifest_tar_path = makeTar(manifest_tar_path);
+			if(manifest_tar == NULL){ sendErrorSocket(curr_sockid); return NULL; }
+		char* manifest_str = readFile(manifest_tar_path);
+		if( sendStringSocket(curr_sockid, manifest_tar) == false ){ pRETURN_ERROR("error sending",NULL); }
+
+	free(manifest_path);
+*/
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -128,15 +141,6 @@ void* upgradeServer(  int curr_sockid, char* proj_name  ){
 		if( typeOfFile(proj_name)!=isDIR ){ sendErrorSocket(curr_sockid); pRETURN_ERROR("project doesn't exist on server",NULL); }
 
 	//TODO:
-		int num_bytes;
-		READ_AND_CHECKn(curr_sockid, &num_bytes, 4);
-			if(num_bytes<=0){ pRETURN_ERROR("Error on Server side", NULL); }
-
-
-
-
-
-void* updateServer(  int curr_sockid, char* proj_name  ){
 
 
 	return 0;
@@ -146,13 +150,6 @@ void* updateServer(  int curr_sockid, char* proj_name  ){
 
 ////////////////////////////////////////////////////////////////////////
 void* commitServer( int curr_sockid, char* proj_name ){
-
-
-
-
-
-
-void* upgradeServer(  int curr_sockid, char* proj_name  ){
 
 
 	return 0;
@@ -162,14 +159,6 @@ void* upgradeServer(  int curr_sockid, char* proj_name  ){
 
 ////////////////////////////////////////////////////////////////////////
 void* pushServer(  int curr_sockid, char* proj_name  ){
-
-
-
-
-
-void* commitServer( int curr_sockid, char* proj_name ){
-
-
 
 	return 0;
 }
@@ -178,12 +167,6 @@ void* commitServer( int curr_sockid, char* proj_name ){
 
 ////////////////////////////////////////////////////////////////////////
 void* createServer(  int curr_sockid, char* proj_name ){
-
-
-
-
-void* pushServer(  int curr_sockid, char* proj_name  ){
-
 
 	return 0;
 }
@@ -192,32 +175,56 @@ void* pushServer(  int curr_sockid, char* proj_name  ){
 ////////////////////////////////////////////////////////////////////////
 void* destroyServer(  int curr_sockid, char* proj_name  ){
 
+	//node to lock
+	//ProjectNode* lock_Node = search(proj_name);
+	//TODO lock repository, expire pending commits
 
+	//Pointer for directory
+	struct dirent *de;
 
+	if( typeOfFile(proj_name)!=isDIR ){pRETURN_ERROR(("Project does not exist"), NULL); }
 
+	//Opening the directory of path given
+	DIR *dr = opendir(proj_name);
+		if(!dr) pRETURN_ERROR("not a directory", false);
 
-void* createServer(  int curr_sockid, char* proj_name ){
+	while((de = readdir(dr)) !=NULL){
+		if(strcmp(de->d_name,".")==0 || strcmp(de->d_name,"..")==0){ continue; }
 
+		//Finding name of file and cending path back into method incase of being a directory
+		char* new_path = combinedPath(proj_name, de->d_name);
+		int np_type = typeOfFile(new_path);
 
+		if( np_type  == isDIR ){
+			//if file is directory, recurse to enter
+			destroyServer(curr_sockid, new_path);
+		}
+		else{
+			unlink(new_path);
+		}
+
+		//freeing		
+		free(new_path);
+	}
+	if ( sendFileSocket(curr_sockid, "Files and directories have been deleted") == false);
+
+	//closing, and returning
+	closedir(dr);
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
-
 
 
 ////////////////////////////////////////////////////////////////////////
 void* addServer(  int curr_sockid, char* proj_name, char* file_name ){
 
-
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
 
 
-
 ////////////////////////////////////////////////////////////////////////
 void* removeServer( int curr_sockid, char* proj_name, char* file_name  ){
-
 
 	return 0;
 }
@@ -227,8 +234,6 @@ void* removeServer( int curr_sockid, char* proj_name, char* file_name  ){
 ////////////////////////////////////////////////////////////////////////
 void* currentversionServer(  int curr_sockid, char* proj_name  ){
 
-
-
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -237,28 +242,24 @@ void* currentversionServer(  int curr_sockid, char* proj_name  ){
 ////////////////////////////////////////////////////////////////////////
 void* historyServer( int curr_sockid, char* proj_name  ){
 
-
-
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
-
 
 
 ////////////////////////////////////////////////////////////////////////
 void* rollbackServer(  int curr_sockid, char* proj_name, char* version_num){
 
-
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
+
 
 
 //CONNECT//////////////////////////////////////////////////////////////////////
 //Handles accepting information sent in by the client
 void* connect_client(void* curr_socket ){
 	int curr_sockid = *(int*)curr_socket;
-
 	printf("%d] Success on connection to client %d!\n", curr_sockid, num_clients);
 
 	//Recieve number of bytes to read from client
@@ -336,10 +337,8 @@ void* connect_client(void* curr_socket ){
 	shutdown(socket_c,2);
 	*/
 
-
 	//close
-	if(close(socket_c) < 0) pRETURN_ERROR("Error on Close", NULL);
-
+	if(close(curr_sockid) < 0) pRETURN_ERROR("Error on Close", NULL);
 	//pthread_exit(NULL);
 
 	return 0;
@@ -350,20 +349,19 @@ void* connect_client(void* curr_socket ){
 
 int main(int argc, char * argv[]){ //TODO: print out error message?
 	//Check for arguments
-	if(argc!=2) pRETURN_ERROR("Enter an argument containing the port number\n",-1);
+		if(argc!=2) pRETURN_ERROR("Enter an argument containing the port number\n",-1);
 
 	//getting port
-	int port = (int)atol(argv[1]);
+		int port = (int)atol(argv[1]);
 
 	//server address
-	struct sockaddr_in address;
+		struct sockaddr_in address;
 
 	//CREATING SOCKET
 	socket_c = socket(AF_INET, SOCK_STREAM, 0);
 		if(socket_c == 0) pRETURN_ERROR("Error on socket creation",-1);
-
 	//reuse socket
-	if (setsockopt(socket_c, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0)  pRETURN_ERROR("setsockopt(SO_REUSEADDR) failed",-1);
+		if (setsockopt(socket_c, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0)  pRETURN_ERROR("setsockopt(SO_REUSEADDR) failed",-1);
 
 	//initialize socket_c
 
@@ -381,26 +379,27 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 	int status = bind(socket_c, (struct sockaddr*) &address, addrlen);
 		if(status < 0) pRETURN_ERROR("Error on Bind",-1);
 
-	//LISTENto client TODO: change to 20
+	//LISTENto client
 	status = listen(socket_c, 20);
 		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
 
 
 	//ACCEPT connecting and accepting message for client
 	int curr_socket;
-	while( (curr_socket= accept(socket_c, (struct sockaddr*) &address, (socklen_t*)&addrlen)) >0 ){
+	while( (curr_socket= accept(socket_c, (struct sockaddr*) &address, (socklen_t*)&addrlen)) > 0 ){
 	 //add client thread to global
 	 	ClientThread curr_client = {-1, curr_socket};
 		clients[num_clients] =  curr_client; //TODO: change -1 to pthread
 
 		num_clients++; //TODO: add mutex
-		//connect to client
+		//connect to client-
 		connect_client( (void*)&curr_socket );
 	}
 
 	//if accept failed
-	if(curr_socket<0) pRETURN_ERROR("Connection to client failed",-1);
-/*SHOULD BE INSIDE LOOP
+	if(curr_socket<0){ pRETURN_ERROR("Connection to client failed",-1); }
+
+/*TODO clients SHOULD BE INSIDE LOOP
 		//create new thread
 		pthread_t id;
 		status = pthread_create(&id, NULL, connect_client, (void*) &tempSocket);
@@ -417,6 +416,5 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 	shutdown(socket_c,2);
 */
 	if(close(socket_c) < 0) pRETURN_ERROR("Error on Close",-1);
-
 	return 0;
 }

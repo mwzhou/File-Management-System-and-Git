@@ -27,6 +27,10 @@
 	#define REMOVE_AND_CHECK(file_name) do{ if(remove(file_name) == 0) fprintf( stderr, "removed file:%s\n",file_name); else fprintf( stderr, "couldn't remove file:%s",file_name);  }while(0) //removes file and prints if successful
 	#define TESTP printf("\ntest: %d\n", __LINE__)
 
+	#define sendErrorSocket(sockfd) sendNumSocket(sockfd, -1)
+	#define SUCCESS_SEND 1766
+
+
 //ENUMS
 	//enum to differentiate between FileTypes
 	typedef enum{ isDIR=017, isREG=736, isUNDEF=-1 }FileType;
@@ -42,19 +46,27 @@
 	/*String Manipulation Methods*/
 	char* substr(char* s, size_t start_ind, size_t length);
 	char* combinedPath(char* path_name, char* file_name);
+	char* concatString(char* s1, char* s2);
 
 	/*Socket Methods*/
-	bool sendErrorSocket( int sockfd );
+	bool sendSig( int sockfd, bool err_cmp);
+	bool receiveSig( int sockfd );
+
+	bool sendNumSocket( int sockfd, int num );
+
 	bool sendStringSocketst( int sockfd, char* str, char* sock_type );
 	char* recieveStringSocketst( int sockfd, char* sock_type );
+
 	bool sendFileSocketst( int sockfd, char* file_name, char* sock_type );
-	char* recieveFileSocketst( int sockfd, bool modify_fname, char* sock_type );
+	char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type );
 
 	/*Tar Methods*/
-	char* tarAndRead(char* proj_name, char* file_path);
+	bool sendTarFilest( int sockfd, char* file_path, char* dir_to_store, char* sock_type );
+	char* recieveTarFilest( int sockfd, char* dir_to_store , char* sock_type);
+	char* unTar( char* tar_filepath );
 	char* makeTar(char* proj_name, char* path_File);
 
-	bool createManifest(char* proj_name);
+	char* createManifest(char* proj_name);
 	bool writeToManifest(char* path, int  manifest_fd );
 	char* generateHash (char* file_name);
 

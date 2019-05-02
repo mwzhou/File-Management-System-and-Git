@@ -17,18 +17,11 @@
 
 
 //GLOBALS////////////////////////////////////////////////////////////////
-int socket_c;
+int overall_socket;
 
 ClientThread clients[20];
 int num_clients = 0;
 
-
-//MACROS///////////////////////////////////////////////////////////////////////
-#define recieveStringSocket(sockfd) recieveStringSocketst( sockfd, "Client")
-#define sendStringSocket(sockfd, str) sendStringSocketst(sockfd, str, "Client")
-#define recieveFileSocket( sockfd, modify_fname ) recieveFileSocketst( sockfd, modify_fname, "Client" )
-#define sendFileSocket( sockfd, file_name )  sendFileSocketst(sockfd, file_name, "Client")
-/////////////////////////////////////////////////////////////////////////
 
 
 
@@ -37,8 +30,23 @@ int num_clients = 0;
 /*
 Accepts project name as an incoming request from client and sends back current version of project
 */
-void* checkoutServer( int curr_sockid, char* proj_name ){
-	printf("%d] Entered command: checkout\n", curr_sockid);
+void* checkoutServer( int sockfd, char* proj_name ){
+	printf("\n\tEntered command: checkout\n");
+
+	/*ERROR CHECK*/
+		//check if proj exists on Server - send message to client
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on Server",NULL);
+		//waiting for Client to see if project exists
+		if( receiveSig( sockfd ) == false ) pRETURN_ERROR("Project already exists on Client",NULL);
+
+
+
+	/**SEND project over to client**/
+		//get backup folder_dir
+		char* bakup_proj_path = concatString( proj_name, ".bak" );
+		if ( sendTarFile(sockfd, proj_name, bakup_proj_path) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
+			free(bakup_proj_path);
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -49,49 +57,115 @@ void* checkoutServer( int curr_sockid, char* proj_name ){
 /*
 update
 */
-void* updateServer(  int curr_sockid, char* proj_name  ){
-	printf("%d] Entered command: update\n", curr_sockid);
+void* updateServer(  int sockfd, char* proj_name  ){
+	printf("\n\tEntered command: update\n");
 
-	//error check
-		//check if project name exists
-		if( typeOfFile(proj_name)!=isDIR ){ sendErrorSocket(curr_sockid); pRETURN_ERROR("project doesn't exist on server",NULL); }
-		//check if manifest exists
+	/*ERROR CHECK*/
+		//check if project name doesn't exist on Server
+		if( sendSig(sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false ) pRETURN_ERROR("project doesn't exist on server",NULL);
+		//check if manifest doesn't on Server
 		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
-		if( typeOfFile(manifest_path) != isREG ){  free(manifest_path); sendErrorSocket(curr_sockid); pRETURN_ERROR(".Manifest file doesn't exist in project on server",NULL); }
-
-	//send manifest file to client
-		if ( sendFileSocket(curr_sockid, manifest_path) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
+		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERROR(".Manifest file doesn't exist in project on server",NULL); }
 
 
-/*
-		char* manifest_tar_path = makeTar(manifest_tar_path);
-			if(manifest_tar == NULL){ sendErrorSocket(curr_sockid); return NULL; }
-		char* manifest_str = readFile(manifest_tar_path);
-		if( sendStringSocket(curr_sockid, manifest_tar) == false ){ pRETURN_ERROR("error sending",NULL); }
+	/*SEND manifest file to client*/
+		char* bakup_proj = concatString( proj_name, ".bak" );
+		//send
+		if ( sendTarFile(sockfd, manifest_path, bakup_proj) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
+			free(manifest_path);
+			free(bakup_proj);
 
+
+		//TODO: operations
+
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////////
+
+
+//[3.3] UPGRADE//////////////////////////////////////////////////////////////
+void* upgradeServer(  int sockfd, char* proj_name  ){
+		printf("\n\tEntered command: upgrade\n");
+
+		/*ERROR CHECK*/
+			//check if project exists on Server
+			if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
+			//check if .Update exists on Client
+			if( receiveSig(sockfd) == false) pRETURN_ERROR(".Update doesn't exist on Client",NULL);
+
+
+		/*OPERATIONS*/
+
+
+		//TODO:
+
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////////
+
+
+//[3.4] COMMIT//////////////////////////////////////////////////////////////
+void* commitServer( int sockfd, char* proj_name ){
+	printf("\n\tEntered command: commit\n");
+
+	/*ERROR CHECK*/
+		//check if project exists on Server
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
+		//wait from client if update file is empty or doesn't exist
+		if( receiveSig(sockfd) == false) pEXIT_ERROR(".Update file is nonempty on Client!");
+
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////////
+
+
+
+//[3.5] PUSH//////////////////////////////////////////////////////////////
+void* pushServer(  int sockfd, char* proj_name  ){
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////////
+
+
+//[3.6] CREATE//////////////////////////////////////////////////////////////
+void* createServer(  int sockfd, char* proj_name ){
+	printf("\n\tEntered command: create\n");
+	/*error check*/
+	if( typeOfFile(proj_name)==isDIR ){ sendErrorSocket(sockfd); pRETURN_ERROR("project already exists on server",NULL); }
+
+	/*make directory*/
+	if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ pRETURN_ERROR("mkdir()", NULL); }
+
+	/*make .Manifest File*/
+	char* manifest_path = combinedPath(proj_name, ".Manifest");
+	int manifest_fd = openFileW( manifest_path );
+		if( manifest_fd < 0){ free(manifest_path); pRETURN_ERROR("open", NULL); }
+	WRITE_AND_CHECKn(manifest_fd, "1\n", 2);
+
+	/*make backup directory*/
+	char* backup_proj_dir = concatString(proj_name, ".bak");
+	if( mkdir( backup_proj_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ free(manifest_path); pRETURN_ERROR("mkdir()", NULL); }
+
+	/*send Manifest file to client*/
+	if( sendTarFile( sockfd, manifest_path, backup_proj_dir) == false){ free(backup_proj_dir); free(manifest_path); pRETURN_ERROR("sending .Manifest file to client", NULL); }
+
+	//TODO: MAKE LINKED LIST
+
+	//free and return
+	printf("\n\tSuccessfully created project: %s on Server side!\n", proj_name);
+	free(backup_proj_dir);
 	free(manifest_path);
-*/
+	close(manifest_fd);
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
 
-
-////////////////////////////////////////////////////////////////////////
-void* upgradeServer(  int curr_sockid, char* proj_name  ){
-	//error check
-		if( typeOfFile(proj_name)!=isDIR ){ sendErrorSocket(curr_sockid); pRETURN_ERROR("project doesn't exist on server",NULL); }
-
-	//TODO:
-
-
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-void* commitServer( int curr_sockid, char* proj_name ){
-
+//[3.7] DESTROY//////////////////////////////////////////////////////////////
+void* destroyServer(  int sockfd, char* proj_name  ){
 
 	return 0;
 }
@@ -99,7 +173,7 @@ void* commitServer( int curr_sockid, char* proj_name ){
 
 
 ////////////////////////////////////////////////////////////////////////
-void* pushServer(  int curr_sockid, char* proj_name  ){
+void* addServer(  int sockfd, char* proj_name, char* file_name ){
 
 	return 0;
 }
@@ -107,14 +181,7 @@ void* pushServer(  int curr_sockid, char* proj_name  ){
 
 
 ////////////////////////////////////////////////////////////////////////
-void* createServer(  int curr_sockid, char* proj_name ){
-
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////
-void* destroyServer(  int curr_sockid, char* proj_name  ){
+void* removeServer( int sockfd, char* proj_name, char* file_name  ){
 
 	return 0;
 }
@@ -122,7 +189,7 @@ void* destroyServer(  int curr_sockid, char* proj_name  ){
 
 
 ////////////////////////////////////////////////////////////////////////
-void* addServer(  int curr_sockid, char* proj_name, char* file_name ){
+void* currentversionServer(  int sockfd, char* proj_name  ){
 
 	return 0;
 }
@@ -130,7 +197,7 @@ void* addServer(  int curr_sockid, char* proj_name, char* file_name ){
 
 
 ////////////////////////////////////////////////////////////////////////
-void* removeServer( int curr_sockid, char* proj_name, char* file_name  ){
+void* historyServer( int sockfd, char* proj_name  ){
 
 	return 0;
 }
@@ -138,23 +205,7 @@ void* removeServer( int curr_sockid, char* proj_name, char* file_name  ){
 
 
 ////////////////////////////////////////////////////////////////////////
-void* currentversionServer(  int curr_sockid, char* proj_name  ){
-
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-void* historyServer( int curr_sockid, char* proj_name  ){
-
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-void* rollbackServer(  int curr_sockid, char* proj_name, char* version_num){
+void* rollbackServer(  int sockfd, char* proj_name, char* version_num){
 
 	return 0;
 }
@@ -165,21 +216,21 @@ void* rollbackServer(  int curr_sockid, char* proj_name, char* version_num){
 //CONNECT//////////////////////////////////////////////////////////////////////
 //Handles accepting information sent in by the client
 void* connect_client(void* curr_socket ){
-	int curr_sockid = *(int*)curr_socket;
-	printf("%d] Success on connection to client %d!\n", curr_sockid, num_clients);
+	int sockfd = *(int*)curr_socket;
+	printf("%d] Success on connection to client %d!\n", sockfd, num_clients);
 
 	//Recieve number of bytes to read from client
 		int num_bytes;
-		READ_AND_CHECKn( curr_sockid , &num_bytes, 4);
+		READ_AND_CHECKn( sockfd , &num_bytes, 4);
 			//if error
-			if(num_bytes <= 0){ printf("\tError on client side\n"); return 0; }
+			if(num_bytes <= 0){ printf("\tError on Client Side recieving args\n"); return 0; }
 		printf("\tRecieved from client - num_bytes_toread: %d\n", num_bytes );
 
 
 	//Recieve info from client
 		char* info_from_client = (char*)malloc(num_bytes + 1);
 				if( info_from_client==NULL ) pEXIT_ERROR("malloc");
-		READ_AND_CHECKn( curr_sockid , info_from_client , num_bytes);
+		READ_AND_CHECKn( sockfd , info_from_client , num_bytes);
 		info_from_client[num_bytes] = '\0';
 
 	//Parse through info and store in variables
@@ -191,43 +242,42 @@ void* connect_client(void* curr_socket ){
 
 
 
-
 	//The following if statements call methods based on the request sent from the client
 	if(strcmp(command,"checkout")==0)
-		checkoutServer(curr_sockid, proj_name);
+		checkoutServer(sockfd, proj_name);
 
 	else if(strcmp(command,"update")==0)
-		updateServer(curr_sockid, proj_name);
+		updateServer(sockfd, proj_name);
 
 	else if(strcmp(command,"upgrade")==0)
-		upgradeServer(curr_sockid, proj_name);
+		upgradeServer(sockfd, proj_name);
 
 	else if(strcmp(command,"commit")==0)
-		commitServer(curr_sockid, proj_name);
+		commitServer(sockfd, proj_name);
 
 	else if(strcmp(command,"push")==0)
-		pushServer(curr_sockid, proj_name);
+		pushServer(sockfd, proj_name);
 
 	else if(strcmp(command,"create")==0)
-		createServer(curr_sockid, proj_name);
+		createServer(sockfd, proj_name);
 
 	else if(strcmp(command,"destroy")==0)
-		destroyServer(curr_sockid, proj_name);
+		destroyServer(sockfd, proj_name);
 
 	else if(strcmp(command,"add")==0)
-		addServer(curr_sockid, proj_name, s3);
+		addServer(sockfd, proj_name, s3);
 
 	else if(strcmp(command,"remove")==0)
-		removeServer(curr_sockid, proj_name, s3);
+		removeServer(sockfd, proj_name, s3);
 
 	else if(strcmp(command,"currentversion")==0)
-		currentversionServer(curr_sockid, proj_name);
+		currentversionServer(sockfd, proj_name);
 
 	else if(strcmp(command,"history")==0)
-		historyServer(curr_sockid, proj_name);
+		historyServer(sockfd, proj_name);
 
 	else if(strcmp(command,"rollback")==0)
-		rollbackServer(curr_sockid, proj_name, s3);
+		rollbackServer(sockfd, proj_name, s3);
 
 	else
 		printf("\tError on client side\n");
@@ -238,13 +288,13 @@ void* connect_client(void* curr_socket ){
 
 	//freeing and exiting
 	/*
-	shutdown(socket_c,0);
-	shutdown(socket_c,1);
-	shutdown(socket_c,2);
+	shutdown(overall_socket,0);
+	shutdown(overall_socket,1);
+	shutdown(overall_socket,2);
 	*/
 
 	//close
-	if(close(curr_sockid) < 0) pRETURN_ERROR("Error on Close", NULL);
+	if(close(sockfd) < 0) pRETURN_ERROR("Error on Close", NULL);
 	//pthread_exit(NULL);
 
 	return 0;
@@ -264,12 +314,12 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 		struct sockaddr_in address;
 
 	//CREATING SOCKET
-	socket_c = socket(AF_INET, SOCK_STREAM, 0);
-		if(socket_c == 0) pRETURN_ERROR("Error on socket creation",-1);
+	overall_socket = socket(AF_INET, SOCK_STREAM, 0);
+		if(overall_socket == 0) pRETURN_ERROR("Error on socket creation",-1);
 	//reuse socket
-		if (setsockopt(socket_c, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0)  pRETURN_ERROR("setsockopt(SO_REUSEADDR) failed",-1);
+		if (setsockopt(overall_socket, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0)  pRETURN_ERROR("setsockopt(SO_REUSEADDR) failed",-1);
 
-	//initialize socket_c
+	//initialize overall_socket
 
 
 	//intitializes sizeof(address) zero-value bytes of address
@@ -282,17 +332,17 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 
 	//BINDING to client
 	int addrlen = sizeof(address);
-	int status = bind(socket_c, (struct sockaddr*) &address, addrlen);
+	int status = bind(overall_socket, (struct sockaddr*) &address, addrlen);
 		if(status < 0) pRETURN_ERROR("Error on Bind",-1);
 
 	//LISTENto client
-	status = listen(socket_c, 20);
+	status = listen(overall_socket, 20);
 		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
 
 
 	//ACCEPT connecting and accepting message for client
 	int curr_socket;
-	while( (curr_socket= accept(socket_c, (struct sockaddr*) &address, (socklen_t*)&addrlen)) > 0 ){
+	while( (curr_socket= accept(overall_socket, (struct sockaddr*) &address, (socklen_t*)&addrlen)) > 0 ){
 	 //add client thread to global
 	 	ClientThread curr_client = {-1, curr_socket};
 		clients[num_clients] =  curr_client; //TODO: change -1 to pthread
@@ -317,10 +367,10 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 
 /*
 	//SHUT DOWN AND RETURN
-	shutdown(socket_c,0);
-	shutdown(socket_c,1);
-	shutdown(socket_c,2);
+	shutdown(overall_socket,0);
+	shutdown(overall_socket,1);
+	shutdown(overall_socket,2);
 */
-	if(close(socket_c) < 0) pRETURN_ERROR("Error on Close",-1);
+	if(close(overall_socket) < 0) pRETURN_ERROR("Error on Close",-1);
 	return 0;
 }

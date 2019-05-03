@@ -239,9 +239,11 @@ void destroyClient(char* proj_name){
 	sendArgsToServer("destroy", proj_name, NULL);
 
 	//recieving success message
-	char* success = recieveFileSocket(sockfd, true);
-	printf("%s\n",success);
-	if( success == NULL){ pRETURN_ERRORvoid( "recieving success message in destroyClient"); }
+	bool success = receiveSig(sockfd);
+	if(success==true)
+		printf("Seccess on destroy!");
+	else
+		printf("Failure on destroy.");
 
 	return;
 }

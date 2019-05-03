@@ -34,5 +34,7 @@ bool addNode(char* proj_name);
 bool delNode(char* proj_name);
 ProjectNode* search(char* proj_name);
 
+void* destroyServerRec(  int sockfd, char* proj_name );
+
 
 #endif

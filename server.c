@@ -105,8 +105,6 @@ void* checkoutServer( int sockfd, char* proj_name ){
 		if ( sendTarFile(sockfd, proj_name, bakup_proj_path) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
 			free(bakup_proj_path);
 
-	free(manifest_path);
-*/
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -222,9 +220,20 @@ void* createServer(  int sockfd, char* proj_name ){
 }
 ////////////////////////////////////////////////////////////////////////
 
-
 ////////////////////////////////////////////////////////////////////////
-void* destroyServer(  int curr_sockid, char* proj_name  ){
+
+void* destroyServer(int sockfd, char* proj_name ){
+
+	//recursively remove all files and directories under project
+	destroyServerRec(sockfd,proj_name );
+
+	//sending success message
+	sendSig(sockfd, true);
+
+	return 0;
+
+}
+void* destroyServerRec(  int sockfd, char* proj_name ){
 
 	//node to lock
 	//ProjectNode* lock_Node = search(proj_name);
@@ -237,7 +246,7 @@ void* destroyServer(  int curr_sockid, char* proj_name  ){
 
 	//Opening the directory of path given
 	DIR *dr = opendir(proj_name);
-		if(!dr) pRETURN_ERROR("not a directory", false);
+		if(!dr) sendSig(sockfd, false);
 
 	while((de = readdir(dr)) !=NULL){
 		if(strcmp(de->d_name,".")==0 || strcmp(de->d_name,"..")==0){ continue; }
@@ -248,7 +257,7 @@ void* destroyServer(  int curr_sockid, char* proj_name  ){
 
 		if( np_type  == isDIR ){
 			//if file is directory, recurse to enter
-			destroyServer(curr_sockid, new_path);
+			destroyServerRec(sockfd, new_path);
 		}
 		else{
 			unlink(new_path);
@@ -257,7 +266,6 @@ void* destroyServer(  int curr_sockid, char* proj_name  ){
 		//freeing		
 		free(new_path);
 	}
-	if ( sendFileSocket(curr_sockid, "Files and directories have been deleted") == false);
 
 	//closing, and returning
 	closedir(dr);

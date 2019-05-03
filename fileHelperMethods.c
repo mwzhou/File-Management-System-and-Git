@@ -23,6 +23,30 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 //FILE methods/////////////////////////////////////////////////////////////////////
 
 /**
+goes through file line by line and returns the line_num w/ instance of target
+**/
+int extractLine(char* fpath, char* target){
+    //Vars
+    FILE * fp;
+    char * line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    fp = fopen( fpath , "r");
+        if (fp == NULL) pEXIT_ERROR("fopen");
+    
+    int line_num = 1;
+    while ((read = getline(&line, &len, fp)) != -1) {
+        if( strstr(line, target) != NULL){ free(line); return line_num; }
+        line_num++;
+    }
+
+    fclose(fp);
+    if(line) free(line);
+    return -1;
+}
+
+/**
 returns size of file in bytes
 returns -1 on error
 **/
@@ -85,6 +109,7 @@ int openFileW(char* file_name){
 
 
 
+
 /**
 returns the type of the string given in
 @params: char* name - file_name or path_name
@@ -134,7 +159,6 @@ char* substr(char* s, size_t start_ind, size_t length){
 	return ret;
 }
 
-
 /**
 To be used to keep track of paths
 Combines a path name with a file name and returns the new path
@@ -155,6 +179,7 @@ char* combinedPath(char* path_name, char* file_name){
 
 	return ret;
 }
+
 
 
 /**
@@ -195,6 +220,7 @@ int lengthBeforeLastOccChar( char* s, char c){
 }
 
 
+
 /**
 returns true if file name ends in .hcz
 **/
@@ -211,17 +237,41 @@ bool endsWithTGZ(char* file_name){
 }
 
 
-
 //WRITING AND READING TO SOCKET///////////////////////////////////////////////////////
 
+/*
+sends signal to socket
+*/
+bool sendSig( int sockfd, bool err_cmp){
+	if( err_cmp ){
+		sendNumSocket( sockfd, -1);
+		return false;
+	}else{
+		sendNumSocket( sockfd, SUCCESS_SEND);
+		return true;
+	}
+}
+
+
+/*
+recieves signal from socket
+*/
+bool receiveSig( int sockfd ){
+	int num;
+	if( read(sockfd, &num,  4) < 0 ) pRETURN_ERROR("write()", false);
+	return (num== SUCCESS_SEND)? true: false;
+}
+
+
 /**
-send error to socket
+send number to socket
 **/
-bool sendErrorSocket( int sockfd ){
-	int err = -1;
-	if( write(sockfd, &err,  4) < 0 ) pRETURN_ERROR("write()", false);
+bool sendNumSocket( int sockfd, int num ){
+	int num_send = num;
+	if( write(sockfd, &num_send,  4) < 0 ) pRETURN_ERROR("write()", false);
 	return true;
 }
+
 
 
 /**
@@ -230,6 +280,7 @@ sends string to socket
 bool sendStringSocketst( int sockfd, char* str, char* sock_type ){
 
 	//send num of bytes
+
 	int send_bytes = strlen(str);
 	if( write(sockfd, &send_bytes,  4) < 0 ) pRETURN_ERROR("write()", false);
 	printf("\tsent %d number of bytes to %s\n",send_bytes, sock_type);
@@ -261,8 +312,6 @@ char* recieveStringSocketst( int sockfd, char* sock_type ){
 
 		return str;
 }
-
-
 
 /**
 note: file_name must just be the project_name and the file_name, not the path
@@ -299,6 +348,7 @@ bool sendFileSocketst( int sockfd, char* file_name, char* sock_type ){
 
 
 /**
+
 recieves file for socket and writes it
 **/
 char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
@@ -489,24 +539,24 @@ return tar_file_path;
 ////////////////////////////////////////////////////////////////////////
 
 /**
+creates manifest file of a whole project, returns path of file (malloced)
 **/
-bool createManifest(char* proj_name){
+char* createManifest(char* proj_name){
 	//create manifest file
 	char* manifest_path = combinedPath(proj_name, ".Manifest");
 	int manifest_fd = openFileW( manifest_path );
-		if( manifest_fd < 0){ pRETURN_ERROR("open", false); }
+		if( manifest_fd < 0){ pRETURN_ERROR("open", NULL); }
 
 	//write, if failed, remove file and return false
 	if( writeToManifest( proj_name, manifest_fd ) == false ){
 		REMOVE_AND_CHECK(manifest_path);
 		free(manifest_path);
 		close(manifest_fd);
-		return false;
+		return NULL;
 	}
 
-	free(manifest_path);
 	close(manifest_fd);
-	return true;
+	return manifest_path;
 }
 
 

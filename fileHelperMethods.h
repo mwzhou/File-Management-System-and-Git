@@ -1,5 +1,6 @@
 #ifndef FILE_HELP
 #define FILE_HELP
+#include "structures.h"
 
 //ERROR MACROS
 	#define PRINT_ERROR(txt) ({\
@@ -20,6 +21,8 @@
 	#define WRITE_AND_CHECKe(file, buf, nbytes) do{  if( write(file, buf , nbytes) < 0 ) { pEXIT_ERROR("write()"); } }while(0) //writes to file, if failed, prints out error and returns void
 	#define WRITE_AND_CHECKn(file, buf, nbytes) do{  if( write(file, buf , nbytes) < 0 ) { pRETURN_ERROR("write()", NULL); } }while(0) //writes to file, if failed, prints out error and returns null
 	#define WRITE_AND_CHECKb(file, buf, nbytes) do{  if( write(file, buf , nbytes) < 0 ) { pRETURN_ERROR("write()", false); } }while(0) //writes to file, if failed, prints out error and returns void
+	#define WRITE_AND_CHECKv(file, buf, nbytes) do{  if( write(file, buf , nbytes) < 0 ) { pRETURN_ERRORvoid("write()"); } }while(0) //writes to file, if failed, prints out error and returns void
+
 
 	#define READ_AND_CHECKe(file, buf, nbytes) do{ if( read(file, buf , nbytes)<0 ) pEXIT_ERROR("read()"); }while(0)
 	#define READ_AND_CHECKn(file, buf, nbytes) do{ if( read(file, buf , nbytes)<0 ) pRETURN_ERROR("read()", NULL); }while(0)
@@ -27,13 +30,21 @@
 	#define REMOVE_AND_CHECK(file_name) do{ if(remove(file_name) == 0) fprintf( stderr, "removed file:%s\n",file_name); else fprintf( stderr, "couldn't remove file:%s",file_name);  }while(0) //removes file and prints if successful
 	#define TESTP printf("\ntest: %d\n", __LINE__)
 
+
+	#define sendErrorSocket(sockfd) sendNumSocket(sockfd, -1)
+	#define SUCCESS_SEND 1766
+
+
+
 //ENUMS
 	//enum to differentiate between FileTypes
 	typedef enum{ isDIR=017, isREG=736, isUNDEF=-1 }FileType;
 
 
 //METHOD SIGNATURES
+
 	/*File Manipulation Methods*/
+	int extractLine(char* fpath, char* target);
 	int sizeOfFile(char* file_name);
 	char* readFile(char* file_name);
 	int openFileW(char* file_name);
@@ -45,19 +56,25 @@
 	char* concatString(char* s1, char* s2);
 
 	/*Socket Methods*/
-	bool sendErrorSocket( int sockfd );
+	bool sendSig( int sockfd, bool err_cmp);
+	bool receiveSig( int sockfd );
+
+	bool sendNumSocket( int sockfd, int num );
+
 	bool sendStringSocketst( int sockfd, char* str, char* sock_type );
 	char* recieveStringSocketst( int sockfd, char* sock_type );
+
 	bool sendFileSocketst( int sockfd, char* file_name, char* sock_type );
 	char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type );
 
 	/*Tar Methods*/
 	bool sendTarFilest( int sockfd, char* file_path, char* dir_to_store, char* sock_type );
 	char* recieveTarFilest( int sockfd, char* dir_to_store , char* sock_type);
+
 	char* unTar( char* tar_filepath );
 	char* makeTar(char* proj_name, char* path_File);
 
-	bool createManifest(char* proj_name);
+	char* createManifest(char* proj_name);
 	bool writeToManifest(char* path, int  manifest_fd );
 	char* generateHash (char* file_name);
 

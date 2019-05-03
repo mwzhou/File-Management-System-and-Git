@@ -135,12 +135,23 @@ void updateClient(char* proj_name){
 				if( update_fd < 0 ) pEXIT_ERROR("update");
 
 
-	/*Comparisons*/ //TODO AVL TREE
+	/*Comparisons*/ //TODO
 			printf("%s\n%s\n%d\n", client_manifest, server_manifest, update_fd); //TODO
 
+			/* Comparison Tree */
+			ManifestNode* clientm_tree = buildManifestTree(client_manifest );
+				free( client_manifest );
+				if(clientm_tree==NULL){ free( server_manifest ); pEXIT_ERROR("tree"); }
+
+			ManifestNode* serverm_tree = buildManifestTree(server_manifest );
+				free( server_manifest );
+				if(serverm_tree==NULL) pEXIT_ERROR("tree");
+
+			//TODO
+
 	//free and return
-	free( client_manifest );
-	free( server_manifest );
+	freeManifestTreeTree( clientm_tree );
+	freeManifestTreeTree( serverm_tree );
 	return;
 }
 ///////////////////////////////////////////////////////////////////////////

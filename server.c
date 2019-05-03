@@ -36,8 +36,6 @@ void* checkoutServer( int sockfd, char* proj_name ){
 		//waiting for Client to see if project exists
 		if( receiveSig( sockfd ) == false ) pRETURN_ERROR("Project already exists on Client",NULL);
 
-
-
 	/**SEND project over to client**/
 		//get backup folder_dir
 		char* bakup_proj_path = concatString( proj_name, ".bak" );

@@ -74,8 +74,6 @@ void checkoutClient(char* proj_name){ //TODO
 		//check if file already exists on Client
 		if( sendSig( sockfd, ( typeOfFile(proj_name)== isDIR ) ) == false ) pEXIT_ERROR("project name already exists on Client side");
 
-
-
 	/*recieving project and untaring it in root*/
 		char* proj_tar = recieveTarFile( sockfd, "./");
 			if(proj_tar == NULL){ pEXIT_ERROR("error recieving directory"); }
@@ -112,48 +110,117 @@ void updateClient(char* proj_name){
 				free(store_manifest_serv_dir);
 				if( manifest_serv_path == NULL ) pEXIT_ERROR("recieving Manifest File");
 
-		//creating manifest file for local directory
+		//get manifest file for client
 			char* manifest_client_path = combinedPath( proj_name, ".Manifest" );
 			//TODO: hash? or nah
 
+
+		/*Get items!*/
+				//get path for .Update file
+				char* update_path = combinedPath( proj_name, ".Update" );
+				//create file
+				int update_fd = openFileW( update_path );
+					if( update_fd < 0 ){ 	free(manifest_client_path); free(manifest_serv_path); free(update_path ); pEXIT_ERROR("update"); }
+
+
+		/* Comparison Trees */
+			ManifestNode* clientm_tree = buildManifestTree( manifest_client_path );
+				free(manifest_client_path);
+				if(clientm_tree==NULL){ free(manifest_serv_path); pEXIT_ERROR("tree"); }
+
+			ManifestNode* serverm_tree = buildManifestTree( manifest_serv_path );
+				free(manifest_serv_path);
+				if(serverm_tree==NULL){ freeManifestTree( clientm_tree ); pEXIT_ERROR("tree"); }
+
+
 	/*OPERATIONS*/
-		//get client and server manifest
-		char* client_manifest = readFile( manifest_client_path );
-			free(manifest_client_path);
-			if(  client_manifest ) pEXIT_ERROR("read");
-		char* server_manifest = readFile( manifest_serv_path );
-			free(manifest_serv_path);
-			if( server_manifest ) pEXIT_ERROR("read");
+	/*Comparisons - writes update file and makes comparisons with two manifest trees*/
+		if( writeUpdateFile( clientm_tree, serverm_tree, update_fd ) == false){ remove(update_path); pEXIT_ERROR("Update conflict!"); }
 
-
-		//create update file
-			//get path for .Update file
-			char* update_path = combinedPath( proj_name, ".Update" );
-			//create file
-			int update_fd = openFileW( update_path );
-				free( update_path );
-				if( update_fd < 0 ) pEXIT_ERROR("update");
-
-
-	/*Comparisons*/ //TODO
-			printf("%s\n%s\n%d\n", client_manifest, server_manifest, update_fd); //TODO
-
-			/* Comparison Tree */
-			ManifestNode* clientm_tree = buildManifestTree(client_manifest );
-				free( client_manifest );
-				if(clientm_tree==NULL){ free( server_manifest ); pEXIT_ERROR("tree"); }
-
-			ManifestNode* serverm_tree = buildManifestTree(server_manifest );
-				free( server_manifest );
-				if(serverm_tree==NULL) pEXIT_ERROR("tree");
-
-			//TODO
 
 	//free and return
-	freeManifestTreeTree( clientm_tree );
-	freeManifestTreeTree( serverm_tree );
-	return;
+		freeManifestTree( clientm_tree );
+		freeManifestTree( serverm_tree );
+		close( update_fd );
+		return;
 }
+
+
+/**
+compare manifest nodes and write to update file
+**/
+bool writeUpdateFile( ManifestNode* clientm_root, ManifestNode* serverm_tree, int update_fd ){
+	bool success = true;
+	cmpManifestTreesM1( &clientm_root , &serverm_tree, update_fd, &success  )
+}
+
+
+/**
+compare client to server
+**/
+void cmpManifestTreesM1( ManifestNode** clientm_root_addr , ManifestNode** serverm_tree_addr, int update_fd, bool** success  ){
+	if( clientm_root == NULL ){ return;}
+
+	/*Recurse Left*/
+	cmpManifestTreesM1( clientm_root->left, serverm_tree, update_fd, success);
+
+
+	/*COMPARISONS*/
+		char* up_cmd = NULL; //update command
+
+		ManifestNode* clientm_root = *clientm_root_addr;
+		ManifestNode* serv_node = searchManifestTree( (*serverm_tree_addr) , clientm_root->file_name );
+
+
+		//Both Client and Server have curr file
+			if(  serv_node != NULL ){
+				//compares client's live hash with server's hash
+					char* client_live_hash =  generateHash( clientm_root->file_name );
+					int hash_cmp = strcmp( client_live_hash , serv_node->hash); //comparison between hash_codes
+						free( client_live_hash );
+
+				//same manifest version number, but different hashes
+					if( (serv_node->mver_num == clientm_root->mver_num) &&  hash_cmp!= 0 )
+						up_cmd = "U";
+				//diff manifest version number, diff file version number, same hash
+					else if ( (serv_node->mver_num != clientm_root->mver_num) &&  hash_cmp== 0 && (serv_node->fver_num != clientm_root->fver_num) )
+						up_cmd = "M";
+
+		//Only Client has this file
+			}else{
+					//if manifest version number is same
+						if( ((*serverm_tree_addr)->mver_num == clientm_root->mver_num)  )
+							up_cmd = "U";
+					//if manifest version number is DIFFERENT
+						if( ((*serverm_tree_addr)->mver_num != clientm_root->mver_num)  )
+							up_cmd = "D";
+			}
+
+			//update compared tracker
+			clientm_root->compared = true;
+			if( serv_node!=NULL ) serv_node-> compared = true;
+
+
+	/*WRITE Command to Update File*/
+			if( up_cmd == NULL ){
+					printf("CONFLICT (client file): %s\n", clientm_root->file_name);
+					*success = false;
+					return;
+			}else{
+					//write to file
+					WRITE_AND_CHECKb( update_fd, clientm_root->file_name, strlen(clientm_root->file_name) );
+					WRITE_AND_CHECKb( update_fd, "\t" , 1 );
+					WRITE_AND_CHECKb( update_fd, up_cmd , 1 );
+					WRITE_AND_CHECKb( update_fd, "\n" , 1 );
+
+					printf("\tUpdate Command:%-5s\tFile:%-5s\n", up_cmd, clientm_root->file_name);
+			}
+
+	/*Recurse Right*/
+	cmpManifestTreesM1( clientm_root->right, serverm_tree, update_fd, success);
+
+}
+
 ///////////////////////////////////////////////////////////////////////////
 
 
@@ -213,7 +280,6 @@ void pushClient(char* proj_name){
 	return;
 }
 /////////////////////////////////////////////////////////////////////////
-
 
 
 //[3.6] CREATE//////////////////////////////////////////////////////////////
@@ -292,7 +358,6 @@ void addClient(char* proj_name, char* file_name){
 
 //[3.9] REMOVE//////////////////////////////////////////////////////////////
 void removeClient(char* proj_name, char* file_name){
-
 	printf("%d] Entered command: remove\n", sockfd);
 
 	//check valid arguments
@@ -342,6 +407,39 @@ void currentVersionClient(char* proj_name){
 	printf("%d] Entered command: currentversion\n", sockfd);
 	sendArgsToServer("currentversion", proj_name, NULL);
 
+	/*ERROR CHECK*/
+		//waiting for signal if valid project on server
+		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
+		if( receiveSig(sockfd) == false) pEXIT_ERROR(".Manifest doesn't exist on server");
+
+	/*Recieve manifest str*/
+			char* manifest_str = recieveStringSocket( sockfd );
+				if( manifest_str == NULL ) pEXIT_ERROR("Recieving manifest string");
+
+			printf("\n\tStarting to print out version numbers and file names:\n");
+
+			/*parse through manifest file*/
+			char* curr_token = strtok( manifest_str , "\n\t"); //get rid of new line
+
+			char* file_name;
+			char* fver_num;
+
+			while( curr_token != NULL){
+					//Get File_name
+					file_name = strtok( NULL, "\n\t");
+						if( file_name == NULL ) break;
+
+					//get v_num
+					fver_num =  strtok( NULL , "\n\t");
+						if( fver_num == NULL ) pEXIT_ERROR("not correct .Manifest format");
+
+					//output
+					printf("\tversion_number: %-5s\tfile: %-5s\n", fver_num, file_name);
+
+					curr_token = strtok( NULL , "\n\t");
+			}
+
+	free(manifest_str);
 	return;
 }
 ////////////////////////////////////////////////////////////////////////////
@@ -370,7 +468,6 @@ void rollbackClient(char* proj_name, char* version){
 	if(  sendSig( sockfd, (v_num <= 0) ) == false ) pEXIT_ERROR("invalid version number");
 
 
-
 	return;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -383,25 +480,26 @@ writes arguments to server
 **/
 void sendArgsToServer(char* s1, char* s2, char* s3){
 
+	//number of bytes
+	int num_bytes = (strlen(s1) + 1 + strlen(s2) + 1);
+		if(s3 != NULL) num_bytes += (strlen(s3) + 1);
 
-	//sending over number of bytes
-	printf("\tSending over num_bytes of info to server\n");
-	long num_bytes = (s3==NULL)? (strlen(s1) + 1 + strlen(s2))  :  (strlen(s1) + 1 + strlen(s2) + 1 + strlen(s3)) ;
+	char delim[2]; delim[0] = (char)176; delim[1] = '\0';
 
-	WRITE_AND_CHECKe(sockfd, &num_bytes,  4);
+	//get arguments
+	char* arguments = (char*)malloc(num_bytes);
+		if( arguments == NULL){ pRETURN_ERRORvoid("malloc"); }
 
-	//sending over all information
-	printf("\tSending over information to server\n");
-	char delim = (char)176;
-	WRITE_AND_CHECKe(sockfd, s1 , strlen(s1));
-	WRITE_AND_CHECKe(sockfd, &delim , 1);
-	WRITE_AND_CHECKe(sockfd, s2 , strlen(s2));
+		strcpy( arguments, s1 );
+		strcat( arguments, delim );
+		strcat( arguments, s2 );
+		if( s3 != NULL ){
+			strcat( arguments, delim );
+			strcat( arguments, s3 );
+		}
 
-	if(s3!=NULL){
-		WRITE_AND_CHECKe(sockfd, &delim  , 1);
-		WRITE_AND_CHECKe(sockfd, s3 , strlen(s3));
-	}
-
+		sendStringSocket( sockfd, arguments );
+		free(arguments);
 }
 
 

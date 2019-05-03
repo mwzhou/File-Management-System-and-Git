@@ -35,7 +35,6 @@
 	#define SUCCESS_SEND 1766
 
 
-
 //ENUMS
 	//enum to differentiate between FileTypes
 	typedef enum{ isDIR=017, isREG=736, isUNDEF=-1 }FileType;
@@ -54,6 +53,8 @@
 	char* substr(char* s, size_t start_ind, size_t length);
 	char* combinedPath(char* path_name, char* file_name);
 	char* concatString(char* s1, char* s2);
+	char* copyString( char* s1 );
+	int lengthBeforeLastOccChar( char* s, char c);
 
 	/*Socket Methods*/
 	bool sendSig( int sockfd, bool err_cmp);

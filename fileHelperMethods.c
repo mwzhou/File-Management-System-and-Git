@@ -34,7 +34,7 @@ int extractLine(char* fpath, char* target){
 
     fp = fopen( fpath , "r");
         if (fp == NULL) pEXIT_ERROR("fopen");
-    
+
     int line_num = 1;
     while ((read = getline(&line, &len, fp)) != -1) {
         if( strstr(line, target) != NULL){ free(line); return line_num; }
@@ -106,7 +106,6 @@ int openFileW(char* file_name){
 
 	return fd;
 }
-
 
 
 
@@ -200,6 +199,18 @@ char* concatString(char* s1, char* s2){
 	strcat(ret, s2);
 
 	return ret;
+}
+
+
+/**
+mallocs copy of string
+**/
+char* copyString( char* s1 ){
+	if( s1 == NULL ) return NULL;
+	
+	char* cpy = (char*)malloc( strlen(s1) + 1 );
+	strcpy( cpy, s1);
+	return cpy;
 }
 
 
@@ -348,7 +359,6 @@ bool sendFileSocketst( int sockfd, char* file_name, char* sock_type ){
 
 
 /**
-
 recieves file for socket and writes it
 **/
 char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
@@ -548,6 +558,7 @@ char* createManifest(char* proj_name){
 		if( manifest_fd < 0){ pRETURN_ERROR("open", NULL); }
 
 	//write, if failed, remove file and return false
+	WRITE_AND_CHECKn( manifest_fd, "1\n" , 2);
 	if( writeToManifest( proj_name, manifest_fd ) == false ){
 		REMOVE_AND_CHECK(manifest_path);
 		free(manifest_path);

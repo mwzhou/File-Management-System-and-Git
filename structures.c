@@ -69,93 +69,6 @@ MAINTAINS ManifestTree properties of the tree and balances if necessary
 }
 
 
-
-/**
-builds ManifestTree based on the codebodetree = insertCodeTreeReook given. Note: assuming manifest_path is valid
-if:
-@returns MANTREE if successful
- returns NULL if error
- returns EMPTY NODE if manifest has no entries
-**/
-ManifestNode* buildManifestTree(char* manifest_path){
-	if(manifest_path==NULL ){ pRETURN_ERROR("NULL codebook name passed", NULL); }
-
-	//Tree to return
-	ManifestNode* mantree = NULL;
-
-	//Read file as string
-		char* fstr = readFile(manifest_path); //reads file into a string
-			if(fstr==NULL){ pRETURN_ERROR("error reading manifest_path", NULL); }
-
-	//edge case: if no tokens in codebook
-		if(strlen(fstr) == 2 ){ //TODO
-				return createManifestNode("empty",-1,"empty",-1);
-		}
-
-	//LOOPING THROUGH CODEBOOK AND ADDING TO TREE
-		char* curr_token = strtok( fstr , "\n\t"); //get rid of new line
-		int mver_num = atoi( curr_token );
-
-		char* file_name;
-		int fver_num;
-		char* hash;
-
-		while( curr_token != NULL){
-			//Get File_name
-			curr_token = strtok( fstr , "\n\t");
-			char* curr_cpy1 = (char*)malloc(strlen(curr_token)+1);
-				if(curr_cpy1 == NULL){ pEXIT_ERROR("malloc"); }
-			strcpy(curr_cpy1 , curr_token);
-			file_name =  curr_cpy1;
-
-			//get v_num
-			curr_token =  strtok( fstr , "\n\t");
-			fver_num = atoi( curr_token );
-
-			//get hash
-			curr_token =  strtok( fstr , "\n\t");
-			char* curr_cpy2 = (char*)malloc(strlen(curr_token)+1);
-				if(curr_cpy2 == NULL){ pEXIT_ERROR("malloc"); }
-			strcpy(curr_cpy2 , curr_token);
-			hash = curr_cpy2;
-
-			//insert to tree
-			mantree = insertManifestTree( mantree, file_name, fver_num, hash, mver_num);
-		}
-
-	free(fstr);
-	return mantree;
-}
-
-
-/**
-Searches through ManifestNode based on the key given, returns the tok/encoding associated with the key
-@params: ManifestNode* root: root of tree
-		 char* key: string to search for in tree
-@returns: String Item associated with key (if mode is cmpByEncodings, returns the token; if not, returns the encoding)
- returns NULL if error
-**/
-char* getFileManifestTree( ManifestNode* root, char* key){
-	if(root == NULL){ pRETURN_ERROR("tried to pass in NULL tree", NULL); }
-
-	ManifestNode* ptr = root;
-	while(ptr!=NULL){
-		//compare key to ptr's key (ptr's key is determined by comparison mode)
-		int cmp_key =  strcmp(key, ptr->file_name);
-
-		if( cmp_key == 0 ){ //found key
-			return ptr->file_name;
-		}else if( cmp_key > 0 ){ //if key>ptr's key, go left
-			ptr = ptr->right;
-		}else if ( cmp_key < 0 ){ //if key<ptr's key, go left
-			ptr = ptr->left;
-		}
-	}
-
-	return NULL; //not found
-}
-
-
 /** [private method]
 Balances ManifestTree Tree given a root after one insert (Constant time)
 @params: ManifestNode* root - root of ManifestTreeTree;
@@ -276,11 +189,11 @@ returns height that is greater between the children Nodes of the node passed in,
 /**
 gets number of nodes in an ManifestTree Frequency Tree
 **/
-int sizeOfManifestTreeTree(ManifestNode* root){
+int sizeOfManifestTree(ManifestNode* root){
 	if(root==NULL)
 		return 0;
 
-	return 1+sizeOfManifestTreeTree(root->left)+sizeOfManifestTreeTree(root->right);
+	return 1+sizeOfManifestTree(root->left)+sizeOfManifestTree(root->right);
 }
 
 
@@ -288,11 +201,11 @@ int sizeOfManifestTreeTree(ManifestNode* root){
 frees all nodes in a ManifestTreeTree. PostOrder Traversal.
 Note: DOES NOT free the Token element
 **/
-void freeManifestTreeTree(ManifestNode* root){
+void freeManifestTree(ManifestNode* root){
 	if(root==NULL) return;
 
-	freeManifestTreeTree(root->left);
-	freeManifestTreeTree(root->right);
+	freeManifestTree(root->left);
+	freeManifestTree(root->right);
 
 	free(root->file_name);
 	free(root->hash);
@@ -300,8 +213,98 @@ void freeManifestTreeTree(ManifestNode* root){
 }
 
 
-//////Linked List Methods////////////////////////////////////////////////////////////////
+//Public ManifestTree methods/////////////////////
 
+/**
+builds ManifestTree based on the codebodetree = insertCodeTreeReook given. Note: assuming manifest_path is valid
+if:
+@returns MANTREE if successful
+ returns NULL if error
+ returns EMPTY NODE if manifest has no entries
+**/
+ManifestNode* buildManifestTree(char* manifest_path){
+	if(manifest_path==NULL ){ pRETURN_ERROR("NULL codebook name passed", NULL); }
+
+	//Tree to return
+		ManifestNode* mantree = NULL;
+
+	//Read file as string
+		char* manifest_str = readFile(manifest_path); //reads file into a string
+			if(manifest_str==NULL){ pRETURN_ERROR("error reading .Manifest", NULL); }
+
+	//edge case: if no tokens in codebook
+		if(strlen(manifest_str) == 2 ){ //TODO
+				return createManifestNode("empty",-1,"empty",-1);
+		}
+
+	//LOOPING THROUGH CODEBOOK AND ADDING TO TREE
+		char* curr_token = strtok( manifest_str , "\n\t"); //get rid of new line
+		int mver_num = atoi( curr_token );
+
+		char* file_name;
+		int fver_num;
+		char* hash;
+
+		while( curr_token != NULL){
+			//Get File_name
+				curr_token = strtok( NULL, "\n\t");
+					if( curr_token == NULL ) break;
+					file_name = copyString( curr_token );
+
+			//get file v_num
+				curr_token =  strtok( NULL , "\n\t");
+					if( curr_token == NULL ) pRETURN_ERROR("Incorrect .Manifest Format", NULL);
+				fver_num = atoi( curr_token );
+					if( fver_num <= 0 ) pRETURN_ERROR("not a valid version number in .Manifest file", NULL);
+
+			//get hash
+				curr_token = strtok( NULL , "\n\t");
+					if( curr_token == NULL ) pRETURN_ERROR("Incorrect .Manifest Format", NULL);
+				hash = copyString( curr_token );
+
+			//insert to tree
+				mantree = insertManifestTree( mantree, file_name, fver_num, hash, mver_num);
+					if( mantree == NULL ) pRETURN_ERROR("ManTree", NULL);
+	}
+
+	free(manifest_str);
+	return mantree;
+}
+
+
+
+/**
+Searches through ManifestNode based on the key given, returns the tok/encoding associated with the key
+@params: ManifestNode* root: root of tree
+		 char* key: string to search for in tree
+@returns: Node looking for with key (file)
+ returns NULL if error
+**/
+ManifestNode* searchManifestTree( ManifestNode* root, char* key){
+	if(root == NULL){ pRETURN_ERROR("tried to pass in NULL tree", NULL); }
+
+	ManifestNode* ptr = root;
+	while(ptr!=NULL){
+		//compare key to ptr's key (ptr's key is determined by comparison mode)
+		int cmp_key =  strcmp(key, ptr->file_name);
+
+		if( cmp_key == 0 ){ //found key
+			return ptr;
+		}else if( cmp_key > 0 ){ //if key>ptr's key, go left
+			ptr = ptr->right;
+		}else if ( cmp_key < 0 ){ //if key<ptr's key, go left
+			ptr = ptr->left;
+		}
+	}
+
+	return NULL; //not found
+}
+
+
+
+
+
+//////Linked List Methods////////////////////////////////////////////////////////////////
 
 
 //initializes head and adds node to start of linked list
@@ -356,4 +359,40 @@ ProjectNode* searchProjectNodePN(ProjectNode* head, char* proj_name){
 			return temp;;
 	}
 	return NULL;
+}
+
+
+
+
+//PRINT METHODS/////////////////////////////////////////////////////////////
+//Manifest Tree
+void printManifestTree(ManifestNode* root){
+	if(root==NULL){
+		printf("NULL\n");
+		return;
+	}
+
+	printf("---------------------------------------------\n");
+	printf("[ManifestTREE:(horizontal)]\n");
+	printManifestTreeRec(root,0);
+	printf("---------------------------------------------\n");
+}
+
+
+//[private method] prints Tree recursively (horizontally). Root on far left. In order Traversal.
+void printManifestTreeRec(ManifestNode* root, int space){
+  	if (root == NULL)return;
+
+  	int count = 10;
+  	int i;
+  	space += count; //increases space inbetween elements
+
+    printManifestTreeRec(root->right, space);
+
+    printf("\n");
+    for (i = count; i < space; i++){ printf(" ");}
+   // printf("file:%s  fv:%d  hash:%s  mv:%d\n", root->file_name, root->fver_num, root->hash,  root->mver_num);
+	 printf("%s\n",root->file_name );
+
+    printManifestTreeRec(root->left, space);
 }

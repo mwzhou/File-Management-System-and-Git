@@ -67,7 +67,7 @@ void* updateServer(  int sockfd, char* proj_name  ){
 	/*SEND manifest file to client*/
 		char* bakup_proj = concatString( proj_name, ".bak" );
 		//send
-		if ( sendTarFile(sockfd, manifest_path, bakup_proj) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
+		if ( sendTarFile(sockfd, manifest_path, bakup_proj) == false){ free(manifest_path); free(bakup_proj); pRETURN_ERROR("error sending .Manifest file", NULL); }
 			free(manifest_path);
 			free(bakup_proj);
 
@@ -203,26 +203,23 @@ void* destroyServer(  int curr_sockid, char* proj_name  ){
 
 ////////////////////////////////////////////////////////////////////////
 
-void* addServer(  int sockfd, char* proj_name, char* file_name ){
-
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-
-void* removeServer( int sockfd, char* proj_name, char* file_name  ){
-
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-
 void* currentversionServer(  int sockfd, char* proj_name  ){
+	/*ERROR CHECK*/
+		//check if project exists on Server
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
+		//check if manifest doesn't on Server
+		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
+		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERROR(".Manifest file doesn't exist in project on server",NULL); }
 
+
+	/*SEND manifest file to client*/
+			char* manifest_str = readFile( manifest_path);
+				free(manifest_path);
+				if(manifest_str==NULL){ pRETURN_ERROR("reading manifest",NULL); }
+			//send manifest_str
+			 if( sendStringSocket( sockfd, manifest_str) == false){ pRETURN_ERROR("sending manifest string",NULL); }
+
+	free(manifest_str);
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -250,27 +247,20 @@ void* connect_client(void* curr_socket ){
 	int sockfd = *(int*)curr_socket;
 	printf("%d] Success on connection to client %d!\n", sockfd, num_clients);
 
-	//Recieve number of bytes to read from client
-		int num_bytes;
-		READ_AND_CHECKn( sockfd , &num_bytes, 4);
-			//if error
-			if(num_bytes <= 0){ printf("\tError on Client Side recieving args\n"); return 0; }
-		printf("\tRecieved from client - num_bytes_toread: %d\n", num_bytes );
-
-
-	//Recieve info from client
-		char* info_from_client = (char*)malloc(num_bytes + 1);
-				if( info_from_client==NULL ) pEXIT_ERROR("malloc");
-		READ_AND_CHECKn( sockfd , info_from_client , num_bytes);
-		info_from_client[num_bytes] = '\0';
-
+	/*Recieve arguments from Client*/
+		char* arguments = recieveStringSocket( sockfd );
+			if( arguments == NULL ){ pRETURN_ERROR("recieving arguments", NULL); }
 	//Parse through info and store in variables
-		char delim[1]; delim[0] = (char)176;
-		char* command = strtok(info_from_client, delim);
-		char* proj_name = strtok(NULL, delim);
+		char delim[2]; delim[0] = (char)176; delim[1] = '\0';
+		char* command = copyString( strtok(arguments, delim) );
+		char* proj_name = copyString( strtok(NULL, delim) );
 		char* s3 = strtok(NULL, delim); //file or version_num if applicable
-		printf("\tRecieved from client - command:%s  proj_name:%s  extra_info?:%s\n", command, proj_name, s3);
+			if( s3 != NULL ) s3 = copyString( s3 );
 
+		if(s3==NULL) printf("\tRecieved from client - command:%s  proj_name:%s \n", command, proj_name);
+		else printf("\tRecieved from client - command:%s  proj_name:%s  version_num:%s \n", command, proj_name, s3);
+
+		free( arguments );
 
 
 	//The following if statements call methods based on the request sent from the client
@@ -294,12 +284,6 @@ void* connect_client(void* curr_socket ){
 
 	else if(strcmp(command,"destroy")==0)
 		destroyServer(sockfd, proj_name);
-
-	else if(strcmp(command,"add")==0)
-		addServer(sockfd, proj_name, s3);
-
-	else if(strcmp(command,"remove")==0)
-		removeServer(sockfd, proj_name, s3);
 
 	else if(strcmp(command,"currentversion")==0)
 		currentversionServer(sockfd, proj_name);
@@ -326,7 +310,9 @@ void* connect_client(void* curr_socket ){
 
 	//close
 
+	printf("[closing client %d,  sock: %d]\n", num_clients, sockfd);
 	if(close(sockfd) < 0) pRETURN_ERROR("Error on Close", NULL);
+
 
 	//pthread_exit(NULL);
 
@@ -336,7 +322,7 @@ void* connect_client(void* curr_socket ){
 
 
 
-int main(int argc, char * argv[]){ //TODO: print out error message?
+int main(int argc, char * argv[]){
 	//Check for arguments
 		if(argc!=2) pRETURN_ERROR("Enter an argument containing the port number\n",-1);
 

@@ -23,7 +23,7 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 //FILE methods/////////////////////////////////////////////////////////////////////
 
 /**
-Goes through project sent and replaces hash in .Manifest
+Goes through project sent and replaces hash in .Manifest, taking in Project Name and File Name
 **/
 bool replaceHash(char* proj_name, char* file_name){
 
@@ -67,11 +67,16 @@ bool replaceHash(char* proj_name, char* file_name){
 		strcat(buffer, new_hash);
 		strcat(buffer, temp+index+strlen(new_hash));
 		fputs(buffer, fTemp);
+		free(new_hash);
 	}
 	
+	//replacing mnifest file with updated manifest file
 	remove(manifest_path);
 	rename("replace.tmp",manifest_path);
 	
+	//Freeing ad closing
+	free(manifest_path);
+	free(file_path);
 	fclose(fPtr);
    	fclose(fTemp);
 
@@ -446,7 +451,7 @@ char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
 //Tar Methods///////////////////////////////////////////////////////////////////////
 
 /**
-tar a file and send it to socket
+tar a file and send it to socket.Update
 **/
 bool sendTarFilest( int sockfd, char* file_path, char* dir_to_store, char* sock_type ){
 	char* tar_fp =  makeTar( file_path, dir_to_store );

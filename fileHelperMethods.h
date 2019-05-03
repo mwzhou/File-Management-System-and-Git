@@ -55,6 +55,8 @@
 	char* combinedPath(char* path_name, char* file_name);
 	char* concatString(char* s1, char* s2);
 
+	int lengthBeforeLastOccChar( char* s, char c);
+
 	/*Socket Methods*/
 	bool sendSig( int sockfd, bool err_cmp);
 	bool receiveSig( int sockfd );

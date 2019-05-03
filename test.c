@@ -14,8 +14,19 @@
 
 
 int main(int argc, char * argv[]){
+	
+	//char* proj_name = "Asst1";
 
-	replaceHash("Asst1","mymalloc.c");
+	char buffer[1024];
+	strcpy(buffer,"Asst1/\n");
+
+	printf("%d\n",(int)(strlen(buffer)));
+
+	int index_end = lengthBeforeLastOccChar(buffer, '/');
+	char* dir_to_store = substr(buffer,0,index_end+1);
+	//char* filePath = recieveTarFile( sockfd, dir_to_store);
+
+	printf("%s\n",dir_to_store);
 
 
 	return 0;

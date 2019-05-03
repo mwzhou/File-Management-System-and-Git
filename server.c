@@ -154,6 +154,25 @@ void* upgradeServer(  int sockfd, char* proj_name  ){
 			//check if .Update exists on Client
 			if( receiveSig(sockfd) == false) pRETURN_ERROR(".Update doesn't exist on Client",NULL);
 
+		//know if you must do D, A, or M
+		char* typeOfAction = recieveStringSocket(sockfd);
+		if(typeOfAction == NULL) {pRETURN_ERROR("recieveStringSocket failed",NULL);}
+
+		//if M or A, recieve path of file to send and tar and send the file
+		if(strcmp(typeOfAction,"MA")==0){
+
+			char* file_to_send = recieveStringSocket(sockfd);
+			char* bakup_proj = concatString( proj_name, ".bak" );
+			if (sendTarFile( sockfd, file_to_send, bakup_proj) == false) {pRETURN_ERROR("sendTarFile failed",NULL);}
+	
+			//freeing
+			free(file_to_send);
+			free(bakup_proj);
+		}
+		
+		//freeing
+		free(typeOfAction);
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -233,6 +252,7 @@ void* destroyServer(int sockfd, char* proj_name ){
 	return 0;
 
 }
+
 void* destroyServerRec(  int sockfd, char* proj_name ){
 
 	//node to lock
@@ -294,7 +314,7 @@ void* removeServer( int sockfd, char* proj_name, char* file_name  ){
 
 ////////////////////////////////////////////////////////////////////////
 
-void* currentversionServer(  int sockfd, char* proj_name  ){
+void* currentversionServer(  int sockfd, char* proj_name ){
 
 	return 0;
 }

@@ -23,6 +23,62 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 //FILE methods/////////////////////////////////////////////////////////////////////
 
 /**
+Goes through project sent and replaces hash in .Manifest
+**/
+bool replaceHash(char* proj_name, char* file_name){
+
+	//Get paths of manifest file and file to write into manifest file
+	char* manifest_path = combinedPath(proj_name, ".Manifest");
+	char* file_path = combinedPath(proj_name, file_name);
+
+	//opening manifest file and creating file that will overwrite manifest file
+	FILE * fPtr;
+   	FILE * fTemp;
+	fPtr = fopen(manifest_path,"r");
+	fTemp = fopen("replace.tmp","w");
+
+	//setting initial variables	
+	int lineSize = 1024;
+	char buffer[lineSize];
+	char temp[lineSize];
+	//going through file line by line
+	while((fgets(buffer, lineSize, fPtr) )!=NULL){
+
+		//until file path is found, store in new file and continue to next line
+		char* pos = strstr(buffer, file_path);
+		if(pos==NULL){
+			fputs(buffer, fTemp);
+			continue;
+		}
+
+		//find index of original hash in line(stored in buffer)
+		int index = pos - buffer;
+		int times_tab = 0;
+		while(times_tab!=2){
+			if(buffer[index] == '\t')
+				times_tab++;
+			index++;
+		}
+
+		//Altering hash by creating new one and inputting to new File
+		strcpy(temp, buffer);
+		buffer[index] = '\0';
+		char* new_hash = generateHash(file_path);
+		strcat(buffer, new_hash);
+		strcat(buffer, temp+index+strlen(new_hash));
+		fputs(buffer, fTemp);
+	}
+	
+	remove(manifest_path);
+	rename("replace.tmp",manifest_path);
+	
+	fclose(fPtr);
+   	fclose(fTemp);
+
+	return true;
+}
+
+/**
 goes through file line by line and returns the line_num w/ instance of target
 **/
 int extractLine(char* fpath, char* target){

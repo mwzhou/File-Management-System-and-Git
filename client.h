@@ -16,6 +16,8 @@
 /////////////////////////////////////////////////////////////////////////
 
 void sendArgsToServer(char* s1, char* s2, char* s3);
+void removeClient(char* proj_name, char* file_name);
+void addClient(char* proj_name, char* file_name);
 
 
 #endif

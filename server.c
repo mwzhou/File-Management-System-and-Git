@@ -105,8 +105,6 @@ void* checkoutServer( int sockfd, char* proj_name ){
 		if ( sendTarFile(sockfd, proj_name, bakup_proj_path) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
 			free(bakup_proj_path);
 
-	free(manifest_path);
-*/
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -155,6 +153,25 @@ void* upgradeServer(  int sockfd, char* proj_name  ){
 			if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
 			//check if .Update exists on Client
 			if( receiveSig(sockfd) == false) pRETURN_ERROR(".Update doesn't exist on Client",NULL);
+
+		//know if you must do D, A, or M
+		char* typeOfAction = recieveStringSocket(sockfd);
+		if(typeOfAction == NULL) {pRETURN_ERROR("recieveStringSocket failed",NULL);}
+
+		//if M or A, recieve path of file to send and tar and send the file
+		if(strcmp(typeOfAction,"MA")==0){
+
+			char* file_to_send = recieveStringSocket(sockfd);
+			char* bakup_proj = concatString( proj_name, ".bak" );
+			if (sendTarFile( sockfd, file_to_send, bakup_proj) == false) {pRETURN_ERROR("sendTarFile failed",NULL);}
+	
+			//freeing
+			free(file_to_send);
+			free(bakup_proj);
+		}
+		
+		//freeing
+		free(typeOfAction);
 
 	return 0;
 }
@@ -222,9 +239,21 @@ void* createServer(  int sockfd, char* proj_name ){
 }
 ////////////////////////////////////////////////////////////////////////
 
-
 ////////////////////////////////////////////////////////////////////////
-void* destroyServer(  int curr_sockid, char* proj_name  ){
+
+void* destroyServer(int sockfd, char* proj_name ){
+
+	//recursively remove all files and directories under project
+	destroyServerRec(sockfd,proj_name );
+
+	//sending success message
+	sendSig(sockfd, true);
+
+	return 0;
+
+}
+
+void* destroyServerRec(  int sockfd, char* proj_name ){
 
 	//node to lock
 	//ProjectNode* lock_Node = search(proj_name);
@@ -237,7 +266,7 @@ void* destroyServer(  int curr_sockid, char* proj_name  ){
 
 	//Opening the directory of path given
 	DIR *dr = opendir(proj_name);
-		if(!dr) pRETURN_ERROR("not a directory", false);
+		if(!dr) sendSig(sockfd, false);
 
 	while((de = readdir(dr)) !=NULL){
 		if(strcmp(de->d_name,".")==0 || strcmp(de->d_name,"..")==0){ continue; }
@@ -248,7 +277,7 @@ void* destroyServer(  int curr_sockid, char* proj_name  ){
 
 		if( np_type  == isDIR ){
 			//if file is directory, recurse to enter
-			destroyServer(curr_sockid, new_path);
+			destroyServerRec(sockfd, new_path);
 		}
 		else{
 			unlink(new_path);
@@ -257,7 +286,6 @@ void* destroyServer(  int curr_sockid, char* proj_name  ){
 		//freeing		
 		free(new_path);
 	}
-	if ( sendFileSocket(curr_sockid, "Files and directories have been deleted") == false);
 
 	//closing, and returning
 	closedir(dr);
@@ -286,7 +314,7 @@ void* removeServer( int sockfd, char* proj_name, char* file_name  ){
 
 ////////////////////////////////////////////////////////////////////////
 
-void* currentversionServer(  int sockfd, char* proj_name  ){
+void* currentversionServer(  int sockfd, char* proj_name ){
 
 	return 0;
 }

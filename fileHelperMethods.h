@@ -43,6 +43,7 @@
 //METHOD SIGNATURES
 
 	/*File Manipulation Methods*/
+	bool replaceHash(char* project_name, char* file_name);
 	int extractLine(char* fpath, char* target);
 	int sizeOfFile(char* file_name);
 	char* readFile(char* file_name);
@@ -53,6 +54,8 @@
 	char* substr(char* s, size_t start_ind, size_t length);
 	char* combinedPath(char* path_name, char* file_name);
 	char* concatString(char* s1, char* s2);
+
+	int lengthBeforeLastOccChar( char* s, char c);
 
 	/*Socket Methods*/
 	bool sendSig( int sockfd, bool err_cmp);

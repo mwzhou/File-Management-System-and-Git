@@ -157,13 +157,74 @@ void upgradeClient(char* proj_name){
 		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
 		//check if update path exists on Client
 		char* update_path = combinedPath(proj_name, ".Update");
-		if( sendSig( sockfd, (typeOfFile(update_path)!=isREG )) == false ){ free(update_path); pEXIT_ERROR(".Update file doesn't exist on Client"); }
+		if( sendSig( sockfd, (typeOfFile(update_path)!=isREG )) == false ){ free(update_path); pEXIT_ERROR(".Update file doesn't exist on Client, do update first"); }
 
 
-	/*OPERATIONS*/
+	//Getting manifest
+	char* manifest_path = combinedPath( proj_name, ".Manifest");
+	
+	//opening update
+	FILE* updateFile = fopen(update_path, "r");
 
-	//recieving...
+	int lineSize = 1024;
+	char buffer[lineSize];
+	//going through file line by line
+	while((fgets(buffer, lineSize, updateFile) )!=NULL){
 
+		//get file path not including project name
+		int index_start = strlen(proj_name);
+		char* end = strstr(buffer,"\t");
+		int index_end = end-buffer;
+		int length = index_end-index_start+1;
+		char* file_name = substr(buffer, index_start, length);
+
+		//If to be deleted, remove from manifest
+		if(buffer[strlen(buffer)-2]== 'D'){
+
+			if(sendStringSocket( sockfd, "D") == false){pEXIT_ERROR("send failed");} 
+
+			//delete line from .Manifest file
+			removeClient(proj_name, file_name);
+		}
+		//If to be modified or added, Modify file/Add file by fetching from server and edit manifest
+		else if(buffer[strlen(buffer)-2]== 'M' || buffer[strlen(buffer)-2]== 'A'){
+			//Send action to be done
+			if(sendStringSocket( sockfd, "MA") == false){pEXIT_ERROR("send failed");} 
+			
+			//send project path and recieve specific file from server (complete path)
+			char* end2 = strstr(buffer,"\t");
+			int index_end2 = end2-buffer;
+			char* file_name2 = substr(buffer, 0, index_end2+1);
+			if(sendStringSocket( sockfd, file_name2) == false){pEXIT_ERROR("send failed");}
+
+			//get dir_to_store (name not including file name)
+			index_end2 = lengthBeforeLastOccChar(buffer, '\\');
+			char* dir_to_store = substr(buffer,0,index_end2+1);
+			recieveTarFile( sockfd, dir_to_store);
+
+			//Add to manifest if function is to Add
+			if(buffer[strlen(buffer)-2]== 'A'){
+				addClient(proj_name, file_name);
+			}
+			//otherwise update manifest with new hashCode
+			else{
+				replaceHash(proj_name,file_name);
+			}
+			
+			//free
+			free(file_name2);
+			free(dir_to_store);
+		}
+
+		free(file_name);
+	}
+
+	//close and delete Update file
+	fclose(updateFile);
+	unlink(update_path);
+	
+	//freeing and closing
+	free(manifest_path);
 	free(update_path);
 	return;
 }
@@ -239,9 +300,11 @@ void destroyClient(char* proj_name){
 	sendArgsToServer("destroy", proj_name, NULL);
 
 	//recieving success message
-	char* success = recieveFileSocket(sockfd, true);
-	printf("%s\n",success);
-	if( success == NULL){ pRETURN_ERRORvoid( "recieving success message in destroyClient"); }
+	bool success = receiveSig(sockfd);
+	if(success==true)
+		printf("Seccess on destroy!");
+	else
+		printf("Failure on destroy.");
 
 	return;
 }

@@ -15,10 +15,9 @@
 #define recieveTarFile( sockfd, dir_to_store) recieveTarFilest( sockfd, dir_to_store , "Server")
 /////////////////////////////////////////////////////////////////////////
 
-
 void sendArgsToServer(char* s1, char* s2, char* s3);
-bool writeUpdateFile( ManifestNode* clientm_tree, ManifestNode* serverm_tree, int update_fd );
-bool cmpManifestTreesM1( ManifestNode* clientm_root , ManifestNode* serverm_tree, int update_fd  );
+void removeClient(char* proj_name, char* file_name);
+void addClient(char* proj_name, char* file_name);
 
 
 #endif

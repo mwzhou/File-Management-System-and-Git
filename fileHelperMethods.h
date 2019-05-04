@@ -1,5 +1,6 @@
 #ifndef FILE_HELP
 #define FILE_HELP
+#include "structures.h"
 
 //ERROR MACROS
 	#define PRINT_ERROR(txt) ({\
@@ -34,7 +35,6 @@
 	#define SUCCESS_SEND 1766
 
 
-
 //ENUMS
 	//enum to differentiate between FileTypes
 	typedef enum{ isDIR=017, isREG=736, isUNDEF=-1 }FileType;
@@ -54,7 +54,7 @@
 	char* substr(char* s, size_t start_ind, size_t length);
 	char* combinedPath(char* path_name, char* file_name);
 	char* concatString(char* s1, char* s2);
-
+	char* copyString( char* s1 );
 	int lengthBeforeLastOccChar( char* s, char c);
 
 	/*Socket Methods*/
@@ -72,6 +72,7 @@
 	/*Tar Methods*/
 	bool sendTarFilest( int sockfd, char* file_path, char* dir_to_store, char* sock_type );
 	char* recieveTarFilest( int sockfd, char* dir_to_store , char* sock_type);
+
 	char* unTar( char* tar_filepath );
 	char* makeTar(char* proj_name, char* path_File);
 

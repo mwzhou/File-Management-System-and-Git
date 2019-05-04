@@ -13,17 +13,10 @@
 #define sendTarFile( sockfd, file_path, dir_to_store)	sendTarFilest( sockfd, file_path, dir_to_store,  "Client" )
 #define recieveTarFile( sockfd, dir_to_store) recieveTarFilest( sockfd, dir_to_store , "Client")
 
-#define addProjectNode( proj_name ) addProjectNodePN(head, proj_name)
-#define delProjectNode( proj_name ) delProjectNodePN(head, proj_name)
+#define addProjectNode( proj_name ) addProjectNodePN(&head, proj_name)
+#define delProjectNode( proj_name ) delProjectNodePN(&head, proj_name)
 #define searchProjectNode( proj_name ) searchProjectNodePN(head, proj_name)
 /////////////////////////////////////////////////////////////////////////
-
-
-//STRUCTS
-typedef struct ClientThread{
-	pthread_t client;
-	int curr_socket;
-}ClientThread;
 
 
 #endif

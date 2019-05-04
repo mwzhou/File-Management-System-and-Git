@@ -302,6 +302,12 @@ void pushClient(char* proj_name){
 	printf("%d] Entered command: push\n", sockfd);
 	sendArgsToServer("push", proj_name, NULL);
 
+	/**ERROR CHECK**/
+		//check if project name doesn't exist on Server
+		if( receiveSig(sockfd) == false ) pEXIT_ERROR("project does not exist on Server");
+		//check if manifest doesn't exist on Server
+		if( receiveSig(sockfd) == false ) pEXIT_ERROR(".Manifest file does not exist on Server");
+
 	return;
 }
 /////////////////////////////////////////////////////////////////////////

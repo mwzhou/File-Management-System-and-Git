@@ -43,7 +43,7 @@
 //METHOD SIGNATURES
 
 	/*File Manipulation Methods*/
-	bool replaceHash(char* project_name, char* file_name);
+	bool replaceHash(char* manifest_path);
 	int extractLine(char* fpath, char* target);
 	int sizeOfFile(char* file_name);
 	char* readFile(char* file_name);

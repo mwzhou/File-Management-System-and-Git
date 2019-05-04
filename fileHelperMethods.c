@@ -23,13 +23,11 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 //FILE methods/////////////////////////////////////////////////////////////////////
 
 /**
-Goes through project sent and replaces hash in .Manifest, taking in Project Name and File Name
+Goes through project sent and replaces hash in .Manifest, taking in Project Name and File Name. returns true only if file hash codes have changed
 **/
-bool replaceHash(char* proj_name, char* file_name){
+bool replaceHash(char* manifest_path){
 
-	//Get paths of manifest file and file to write into manifest file
-	char* manifest_path = combinedPath(proj_name, ".Manifest");
-	char* file_path = combinedPath(proj_name, file_name);
+	bool ret_value = false;
 
 	//opening manifest file and creating file that will overwrite manifest file
 	FILE * fPtr;
@@ -44,15 +42,12 @@ bool replaceHash(char* proj_name, char* file_name){
 	//going through file line by line
 	while((fgets(buffer, lineSize, fPtr) )!=NULL){
 
-		//until file path is found, store in new file and continue to next line
-		char* pos = strstr(buffer, file_path);
-		if(pos==NULL){
-			fputs(buffer, fTemp);
-			continue;
-		}
+		//get complete path of file
+		char* end = strstr(buffer,"\t");
+		int index = end-buffer;
+		char* file_path = substr(buffer, 0, index+1);
 
 		//find index of original hash in line(stored in buffer)
-		int index = pos - buffer;
 		int times_tab = 0;
 		while(times_tab!=2){
 			if(buffer[index] == '\t')
@@ -62,25 +57,27 @@ bool replaceHash(char* proj_name, char* file_name){
 
 		//Altering hash by creating new one and inputting to new File
 		strcpy(temp, buffer);
+		char* og_hash = substr(buffer, index+1, 32);
 		buffer[index] = '\0';
 		char* new_hash = generateHash(file_path);
+		//TODO if new_hash not equal to og_hash enter into .Commit file
 		strcat(buffer, new_hash);
 		strcat(buffer, temp+index+strlen(new_hash));
 		fputs(buffer, fTemp);
 		free(new_hash);
+		free(og_hash);
+		free(file_path);
 	}
 	
 	//replacing mnifest file with updated manifest file
 	remove(manifest_path);
 	rename("replace.tmp",manifest_path);
 	
-	//Freeing ad closing
-	free(manifest_path);
-	free(file_path);
+	//Fclosing
 	fclose(fPtr);
    	fclose(fTemp);
 
-	return true;
+	return ret_value;
 }
 
 /**
@@ -698,14 +695,14 @@ char* generateHash (char* file_name){
 	}
 	SHA256_Final(hash, &ctx);
 
-	char* output = (char*)malloc( SHA256_DIGEST_LENGTH + 1 );
+	char* output = (char*)malloc( SHA256_DIGEST_LENGTH*2 + 1 );
 
 	int i;
 	for(i=0; i<SHA256_DIGEST_LENGTH; i++){
 		sprintf(output+(i*2), "%02x", hash[i]);
 	}
 	//KEEP HERE BECAUSE SPRINTF
-	output[ SHA256_DIGEST_LENGTH ] = '\0';
+	output[ SHA256_DIGEST_LENGTH *2] = '\0';
 	free(buffer);
 
 	//returning hashcode generated

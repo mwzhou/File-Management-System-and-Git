@@ -162,70 +162,107 @@ void upgradeClient(char* proj_name){
 
 	//Getting manifest
 	char* manifest_path = combinedPath( proj_name, ".Manifest");
+
+	//If .Update file is empty
+	if(sizeOfFile(update_path)<=0){
+		unlink(update_path);
+		pEXIT_ERROR(".Update is empty, project is up to date.");
+	} 
+
+	printf("size of file is : %d\n",sizeOfFile(update_path));
 	
 	//opening update
-	FILE* updateFile = fopen(update_path, "r");
+	//FILE* updateFile = fopen(update_path, "r");
 
-	int lineSize = 1024;
-	char buffer[lineSize];
+	char* file_contains = readFile(update_path);
+	printf("%s\n",file_contains);
+
+	char* line = strtok(file_contains,"\n");
+
 	//going through file line by line
-	while((fgets(buffer, lineSize, updateFile) )!=NULL){
+	  while (line!=NULL) {
 
+		
 		//get file path not including project name
 		int index_start = strlen(proj_name);
-		char* end = strstr(buffer,"\t");
-		int index_end = end-buffer;
-		int length = index_end-index_start+1;
-		char* file_name = substr(buffer, index_start, length);
+		char* end = strstr(line,"\t");
+		int index_end = end-line;
+		int length = index_end-index_start;
+		char* file_name = substr(line, index_start+1, length);
+		printf("File name is: %s\n",file_name);
+		//printf("Char Is: %c\n",line[strlen(line)-1]);
 
 		//If to be deleted, remove from manifest
-		if(buffer[strlen(buffer)-2]== 'D'){
-
-			if(sendStringSocket( sockfd, "D") == false){pEXIT_ERROR("send failed");} 
-
-			//delete line from .Manifest file
-			removeClient(proj_name, file_name);
-		}
-		//If to be modified or added, Modify file/Add file by fetching from server and edit manifest
-		else if(buffer[strlen(buffer)-2]== 'M' || buffer[strlen(buffer)-2]== 'A'){
-			//Send action to be done
-			if(sendStringSocket( sockfd, "MA") == false){pEXIT_ERROR("send failed");} 
+		//if(line[strlen(line)-1]== 'D'){
+		
+			//if(sendStringSocket( sockfd, "none") == false){pEXIT_ERROR("send failed");}			
 			
+			//delete line from .Manifest file
+			//removeClient(proj_name, file_name);
+		//}
+		//If to be modified or added, Modify file/Add file by fetching from server and edit manifest
+		//if(line[strlen(line)-1]== 'C'){
+			//printf("Enters Add\n");
 			//send project path and recieve specific file from server (complete path)
-			char* end2 = strstr(buffer,"\t");
-			int index_end2 = end2-buffer;
-			char* file_name2 = substr(buffer, 0, index_end2+1);
+			char* end2 = strstr(line,"\t");
+			int index_end2 = end2-line;
+			char* file_name2 = substr(line, 0, index_end2+1);
+			printf("file_name2: %s\n", file_name2);
 			if(sendStringSocket( sockfd, file_name2) == false){pEXIT_ERROR("send failed");}
-
+			
 			//get dir_to_store (name not including file name)
-			index_end2 = lengthBeforeLastOccChar(buffer, '\\');
-			char* dir_to_store = substr(buffer,0,index_end2+1);
+			int index_end3 = lengthBeforeLastOccChar(line, '/');
+			char* dir_to_store = substr(line,0,index_end3+1);
+			printf("Directory is: %s\n",dir_to_store);
+			char* path = recieveTarFile( sockfd, dir_to_store);
+
+			char action = line[strlen(line)-1];
+			if(action=='D'){
+				removeClient(proj_name, file_name);
+				unlink(path);
+			}
+			/*else if(action == 'C'){
+				addClient(proj_name, file_name);
+			}*/
+	
+			//free
+			free(file_name2);
+			free(dir_to_store);
+		//}
+		/*if(line[strlen(line)-1]== 'E'){
+			char* end2 = strstr(line,"\t");
+			int index_end2 = end2-line;
+			char* file_name2 = substr(line, 0, index_end2+1);
+			printf("file_name2: %s\n", file_name2);
+			if(sendStringSocket( sockfd, file_name2) == false){pEXIT_ERROR("send failed");}
+			
+			//get dir_to_store (name not including file name)
+			index_end2 = lengthBeforeLastOccChar(line, '/');
+			char* dir_to_store = substr(line,0,index_end2+1);
 			recieveTarFile( sockfd, dir_to_store);
 
 			//Add to manifest if function is to Add
-			if(buffer[strlen(buffer)-2]== 'A'){
-				addClient(proj_name, file_name);
-			}
-			//otherwise update manifest with new hashCode
-			else{
-				replaceHash(proj_name,file_name);
-			}
+			addClient(proj_name, file_name);
 			
 			//free
 			free(file_name2);
 			free(dir_to_store);
-		}
+		}*/
 
 		free(file_name);
+
+		line = strtok(NULL,"\n");
+		printf("line is: %s\n",line);
 	}
 
 	//close and delete Update file
-	fclose(updateFile);
-	unlink(update_path);
+	//fclose(updateFile);
+	//unlink(update_path);
 	
 	//freeing and closing
 	free(manifest_path);
 	free(update_path);
+	if(line) free(line);
 	return;
 }
 ////////////////////////////////////////////////////////////////////////////
@@ -246,9 +283,34 @@ void commitClient(char* proj_name){
 		char* update_path = combinedPath(proj_name, ".Update");
 		if( sendSig( sockfd, ( typeOfFile(update_path)!=isUNDEF && sizeOfFile(update_path)!=0 ) ) == false ){ free(update_path); pEXIT_ERROR(".Update file is nonempty on Client!"); } //TODO
 
-	/*OPERATIONS*/
+	//recieve tar file and get path of server's .Manifest
+	char* dir_to_store = concatString(proj_name,".bak");
+	char* serverManifest = recieveTarFile( sockfd, dir_to_store);
+	char* clientManifest = combinedPath(proj_name, ".Manifest");
 
+	FILE* sF = fopen(serverManifest,"r");
+	FILE* cF = fopen(clientManifest,"a+");
+
+	int lineSize = 1024;
+	char bufferS[lineSize];
+	char bufferC[lineSize];
+	
+	//checking if version of manifest files are the same, return error
+	fgets(bufferS, lineSize, sF) ;
+	fgets(bufferC, lineSize, cF) ;
+	if(strcmp(bufferS,bufferC)!=0){pEXIT_ERROR("Update local project first!");}
+
+	//rehash every file in client .Manifest
+	//bool enterCommit = replaceHash(clientManifest);
+	
+	//delete server's .Manifest from client side
+	unlink(serverManifest);
+
+	//freeing
 	free(update_path);
+	free(dir_to_store);
+	free(serverManifest);
+	free(clientManifest);
 	return;
 }
 ////////////////////////////////////////////////////////////////////////////
@@ -321,7 +383,18 @@ void addClient(char* proj_name, char* file_name){
 
 	//Get paths of manifest file and file to write into manifest file
 	char* manifest_path = combinedPath(proj_name, ".Manifest");
-	int manifest_fd = open( manifest_path, O_WRONLY|O_APPEND, (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH) ); //writing in manifest file
+
+	FILE* fp = fopen(manifest_path,"a+");
+
+	//find path of file and generate hashcode for it	
+	char* new_path = combinedPath(proj_name, file_name);
+	char* hash_code = generateHash(new_path);
+
+	fputs(new_path, fp);
+	fputs("\t1\t", fp);
+	fputs(hash_code, fp);
+	fputs("\n", fp);
+	/*int manifest_fd = open( manifest_path, O_WRONLY|O_APPEND, (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH) ); //writing in manifest file
 		if(manifest_fd < 0){ fprintf( stderr, "file:%s\n",file_name ); pRETURN_ERRORvoid("tried to open file flags: (O_WRONLY|O_APPEND)"); }
 
 	if(manifest_fd<0) { pRETURN_ERRORvoid("Error on opening file"); }
@@ -336,12 +409,12 @@ void addClient(char* proj_name, char* file_name){
 	WRITE_AND_CHECKv( manifest_fd, "1", 1);
 	WRITE_AND_CHECKv( manifest_fd, "\t", 1);
 	WRITE_AND_CHECKv( manifest_fd, hash_code, strlen(hash_code));
-	WRITE_AND_CHECKv( manifest_fd, "\n", 1);
+	WRITE_AND_CHECKv( manifest_fd, "\n", 1);*/
 	
 	//freeing and closing	
 	free(hash_code);
 	free(new_path);
-	close(manifest_fd);
+	fclose(fp);
 	free(manifest_path);
 
 	return;

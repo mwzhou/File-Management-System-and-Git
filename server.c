@@ -28,7 +28,7 @@ ProjectNode *head = NULL;
 //[3.1] CHECKOUT////////////////////////////////////////////////////////////////////////
 
 void* checkoutServer( int sockfd, char* proj_name ){
-	printf("\n\tEntered command: checkout\n");
+	printf("\nEntered command: checkout\n");
 
 	/*ERROR CHECK*/
 		//check if proj exists on Server - send message to client
@@ -54,7 +54,7 @@ void* checkoutServer( int sockfd, char* proj_name ){
 update
 */
 void* updateServer(  int sockfd, char* proj_name  ){
-	printf("\n\tEntered command: update\n");
+	printf("\nEntered command: update\n");
 
 	/*ERROR CHECK*/
 		//check if project name doesn't exist on Server
@@ -71,11 +71,6 @@ void* updateServer(  int sockfd, char* proj_name  ){
 			free(manifest_path);
 			free(bakup_proj);
 
-
-		//TODO: operations
-
-
-
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -83,7 +78,7 @@ void* updateServer(  int sockfd, char* proj_name  ){
 
 //[3.3] UPGRADE//////////////////////////////////////////////////////////////
 void* upgradeServer(  int sockfd, char* proj_name  ){
-		printf("\n\tEntered command: upgrade\n");
+		printf("\nEntered command: upgrade\n");
 
 		/*ERROR CHECK*/
 			//check if project exists on Server
@@ -98,7 +93,7 @@ void* upgradeServer(  int sockfd, char* proj_name  ){
 
 //[3.4] COMMIT//////////////////////////////////////////////////////////////
 void* commitServer( int sockfd, char* proj_name ){
-	printf("\n\tEntered command: commit\n");
+	printf("\nEntered command: commit\n");
 
 	/*ERROR CHECK*/
 		//check if project exists on Server
@@ -124,7 +119,7 @@ void* pushServer(  int sockfd, char* proj_name  ){
 
 //[3.6] CREATE//////////////////////////////////////////////////////////////
 void* createServer(  int sockfd, char* proj_name ){
-	printf("\n\tEntered command: create\n");
+	printf("\nEntered command: create\n");
 	/*error check*/
 	if( typeOfFile(proj_name)==isDIR ){ sendErrorSocket(sockfd); pRETURN_ERROR("project already exists on server",NULL); }
 
@@ -148,7 +143,7 @@ void* createServer(  int sockfd, char* proj_name ){
 	//TODO: MAKE LINKED LIST
 
 	//free and return
-	printf("\n\tSuccessfully created project: %s on Server side!\n", proj_name);
+	printf("\nSuccessfully created project: %s on Server side!\n", proj_name);
 	free(backup_proj_dir);
 	free(manifest_path);
 	close(manifest_fd);

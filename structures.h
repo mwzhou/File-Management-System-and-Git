@@ -4,18 +4,15 @@
 #include "fileHelperMethods.h"
 #define heightManifestTree(node) (((node)==NULL)? 0: (node)->height)
 /*
-Manifest ManifestTree Tree to order items in the manifest
+Manifest ManifestNode Linked List
 */
  typedef struct ManifestNode{
+   int mver_num;
 	 char* file_name;
 	 int fver_num;
 	 char* hash;
-	 int mver_num;
 
-	 bool compared;
-	 int height;
-	 struct ManifestNode* left;
-	 struct ManifestNode* right;
+   struct ManifestNode* next;
  }ManifestNode;
 
 
@@ -28,25 +25,16 @@ Manifest ManifestTree Tree to order items in the manifest
 
 
 //METHOD SIGS
-	ManifestNode* buildManifestTree(char* manifest_path);
-	ManifestNode* searchManifestTree( ManifestNode* root, char* key);
-	void freeManifestTree(ManifestNode* root);
+  ManifestNode* createManifestNode(	int mver_num, char* file_name, int fver_num, char* hash);
+  ManifestNode* buildManifestLL(char* manifest_path);
+  ManifestNode* searchManifestNode(ManifestNode* head, char* file_name);
+  bool addManifestNode( ManifestNode** head_addr, ManifestNode* to_add );
+  bool delManifestNode(ManifestNode** head_addr, char* file_name);
 
 
-	ManifestNode* createManifestNode(char* file_name, int fver_num, char* hash, int mver_num);
-	ManifestNode* insertManifestTree(ManifestNode* root, char* file_name, int fver_num, char* hash, int mver_num);
-	ManifestNode* BalanceManifestTree(ManifestNode* root, int balance_factor, char* key);
-	void Case1Balance(ManifestNode** root_ptr, bool isLeft);
-	void Case2Balance(ManifestNode** root_ptr, bool isLeftRight);
-	int greaterHeight(ManifestNode* parent);
-	int sizeOfManifestTree(ManifestNode* root);
-
-
-	bool addProjectNodePN(ProjectNode* head, char* proj_name);
-	bool delProjectNodePN(ProjectNode* head, char* proj_name);
+	bool addProjectNodePN(ProjectNode** head, char* proj_name);
+	bool delProjectNodePN(ProjectNode** head, char* proj_name);
 	ProjectNode* searchProjectNodePN(ProjectNode* head, char* proj_name);
 
-	void printManifestTree(ManifestNode* root);
-	void printManifestTreeRec(ManifestNode* root, int space);
-
+  void printManifestNode( ManifestNode* head );
 #endif

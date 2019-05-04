@@ -207,7 +207,7 @@ mallocs copy of string
 **/
 char* copyString( char* s1 ){
 	if( s1 == NULL ) return NULL;
-	
+
 	char* cpy = (char*)malloc( strlen(s1) + 1 );
 	strcpy( cpy, s1);
 	return cpy;
@@ -291,7 +291,6 @@ sends string to socket
 bool sendStringSocketst( int sockfd, char* str, char* sock_type ){
 
 	//send num of bytes
-
 	int send_bytes = strlen(str);
 	if( write(sockfd, &send_bytes,  4) < 0 ) pRETURN_ERROR("write()", false);
 	printf("\tsent %d number of bytes to %s\n",send_bytes, sock_type);
@@ -592,15 +591,15 @@ bool writeToManifest(char* path, int  manifest_fd ){
 			char* new_path = combinedPath(path, de->d_name);
 			int np_type = typeOfFile(new_path);
 
-
 			if( np_type  == isDIR ){
 					//recurse
-					writeToManifest( new_path , manifest_fd);
+					writeToManifest(new_path , manifest_fd);
 
 			}else if( np_type == isREG ){
 						char* hash_code = generateHash(new_path);
 						//printf("path:%s\t%s\t\t%s\t%d\n", new_path, path, de->d_name, np_type);
 						//printf("%s\thash:%s\n", new_path, hash_code);
+            //printf("np: %-5s\tp: %-5s\tn: %-5s\th: %-5s\n", new_path, path, de->d_name, hash_code);
 
 						//Write to manifest fd
 						WRITE_AND_CHECKb( manifest_fd, new_path, strlen(new_path));
@@ -610,10 +609,10 @@ bool writeToManifest(char* path, int  manifest_fd ){
 						WRITE_AND_CHECKb( manifest_fd, hash_code, strlen(hash_code));
 						WRITE_AND_CHECKb( manifest_fd, "\n", 1);
 
-						free(hash_code);
+						//free(hash_code);
 			}
 
-			free(new_path);
+			//free(new_path);
 		}
 
 	//close and return
@@ -648,14 +647,14 @@ char* generateHash (char* file_name){
 	}
 	SHA256_Final(hash, &ctx);
 
-	char* output = (char*)malloc( SHA256_DIGEST_LENGTH + 1 );
+	char* output = (char*)malloc( SHA256_DIGEST_LENGTH*2 + 1 );
+  output[ SHA256_DIGEST_LENGTH*2 ] = '\0';
 
 	int i;
 	for(i=0; i<SHA256_DIGEST_LENGTH; i++){
 		sprintf(output+(i*2), "%02x", hash[i]);
 	}
 	//KEEP HERE BECAUSE SPRINTF
-	output[ SHA256_DIGEST_LENGTH ] = '\0';
 	free(buffer);
 
 	//returning hashcode generated

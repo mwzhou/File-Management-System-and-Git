@@ -49,13 +49,23 @@ int main(int argc, char * argv[]){
 	//createManifest("Asst1");
 
 	//add("Asst1","happy.c");
-	createManifest("r1");
-	char* m_p = combinedPath( "r1" , ".Manifest");
-	ManifestNode* m =  buildManifestTree( m_p );
-	printManifestTree(m);
+	createManifest("Rec1");
+	char* manifest_p = combinedPath("Rec1", ".Manifest");
+	ManifestNode* h = buildManifestLL(manifest_p );
 
-	free(m_p);
-	freeManifestTree(m);
+	ManifestNode* ptr = h;
+	while(ptr!=NULL){
+		char*f = ptr->file_name;
+
+		ptr = ptr->next;
+
+		delManifestNode(&h, f);
+
+		TESTP;
+		printManifestNode(h);
+		TESTP;
+	}
+
 
 	return 0;
 

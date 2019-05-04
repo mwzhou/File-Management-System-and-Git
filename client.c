@@ -105,14 +105,12 @@ void updateClient(char* proj_name){
 	/*recieve manifest files*/
 		//recieving manifest file from server
 			char* store_manifest_serv_dir = concatString(proj_name, ".bak");  //make path to store manifest file recieved from Server
-
 			char* manifest_serv_path = recieveTarFile(sockfd, store_manifest_serv_dir);
 				free(store_manifest_serv_dir);
 				if( manifest_serv_path == NULL ) pEXIT_ERROR("recieving Manifest File");
 
 		//get manifest file for client
 			char* manifest_client_path = combinedPath( proj_name, ".Manifest" );
-			//TODO: hash? or nah
 
 
 		/*Get items!*/
@@ -123,103 +121,130 @@ void updateClient(char* proj_name){
 					if( update_fd < 0 ){ 	free(manifest_client_path); free(manifest_serv_path); free(update_path ); pEXIT_ERROR("update"); }
 
 
-		/* Comparison Trees */
-			ManifestNode* clientm_tree = buildManifestTree( manifest_client_path );
+		/* Comparison Linked Lists should be free after write*/
+			ManifestNode* clientLL = buildManifestLL( manifest_client_path );
 				free(manifest_client_path);
-				if(clientm_tree==NULL){ free(manifest_serv_path); pEXIT_ERROR("tree"); }
-
-			ManifestNode* serverm_tree = buildManifestTree( manifest_serv_path );
+				if( clientLL == NULL ){ pEXIT_ERROR("error creating Manifest Linked List (Client)"); }
+			ManifestNode* serverLL = buildManifestLL( manifest_serv_path );
 				free(manifest_serv_path);
-				if(serverm_tree==NULL){ freeManifestTree( clientm_tree ); pEXIT_ERROR("tree"); }
+				if( serverLL == NULL ){ pEXIT_ERROR("error creating Manifest Linked List (Server)"); }
 
 
-	/*OPERATIONS*/
+	/*WRITE UPDATE FILE AND DO COMPARISONS*/
 	/*Comparisons - writes update file and makes comparisons with two manifest trees*/
-		if( writeUpdateFile( clientm_tree, serverm_tree, update_fd ) == false){ remove(update_path); pEXIT_ERROR("Update conflict!"); }
+		printf("\n\tWill start writing .Update file: listing all updates...\n");
+		//write update file
+		bool write_success = writeUpdateFile( clientLL , serverLL, update_fd );
+		if( write_success == false ){
+			REMOVE_AND_CHECK(update_path);
+			free(update_path);
+			pEXIT_ERROR("Update conflict!");
+		}
+
 
 
 	//free and return
-		freeManifestTree( clientm_tree );
-		freeManifestTree( serverm_tree );
 		close( update_fd );
+		free(update_path);
 		return;
 }
 
 
 /**
-compare manifest nodes and write to update file
+FREES LINKED LISTS THROUGH DELETES
+goes through each manifest - compares files and deletes if not found
 **/
-bool writeUpdateFile( ManifestNode* clientm_root, ManifestNode* serverm_tree, int update_fd ){
-	bool success = true;
-	cmpManifestTreesM1( &clientm_root , &serverm_tree, update_fd, &success  )
+bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head , int update_fd ){
+	int clienth_mver_num = clientLL_head->mver_num; //manifest version client
+	int serverh_mver_num = serverLL_head->mver_num; //manifest version server
+
+	/*Comparison Client to Server*/
+	ManifestNode* client_ptr = clientLL_head;
+
+	while( client_ptr != NULL){
+		char* up_cmd = NULL;
+		char* cptr_file = client_ptr->file_name;
+		ManifestNode* serv_cmpnode = searchManifestNode( serverLL_head, cptr_file );
+
+		/**COMPARISONS*/
+		//both LLs have a file entry
+		if(serv_cmpnode != NULL){
+			char* cptr_livehash = generateHash( cptr_file );
+
+			//COMPARISON
+			//same manifest version number, but different hashes from server and live
+				if( (serv_cmpnode->mver_num == client_ptr ->mver_num) &&  (strcmp( cptr_livehash , serv_cmpnode->hash) != 0) )
+			   	up_cmd = "U";
+	 		//diff manifest version number, diff file version number, same hash live hash and client
+				else if ( (serv_cmpnode->mver_num != client_ptr->mver_num) &&  (strcmp( cptr_livehash , client_ptr->hash) == 0)  && (serv_cmpnode->fver_num != client_ptr->fver_num) )
+			   	up_cmd = "M";
+
+			//free
+			free(cptr_livehash);
+
+		 //Only Client has this file
+		}else{
+				 //if manifest version number is same
+				 if( (serverh_mver_num == client_ptr->mver_num) )
+					 up_cmd = "U";
+				 //if manifest version number is DIFFERENT
+				 else
+				 	 up_cmd = "D";
+		}
+
+		/*WRITING TO FILE*/
+		if(up_cmd == NULL){
+				printf("\t\tCONFLICT ERROR:\t%5s\n", cptr_file);
+				return false;
+		}else{
+			//write to file
+			WRITE_AND_CHECKb( update_fd, cptr_file , strlen(cptr_file) );
+			WRITE_AND_CHECKb( update_fd, "\t" , 1 );
+			WRITE_AND_CHECKb( update_fd, up_cmd , 1 );
+			WRITE_AND_CHECKb( update_fd, "\n" , 1 );
+
+			printf("\t\tUpdate Command:%-5s\tFile:%-5s\n", up_cmd, cptr_file);
+		}
+
+		//UPDATE
+		client_ptr = client_ptr->next;
+
+		/*DELETE NODES*/
+		if(serv_cmpnode != NULL) delManifestNode( &serverLL_head, cptr_file);
+		delManifestNode( &clientLL_head, cptr_file);
+	}
+
+
+
+	/*Comparison rest of Server files*/
+	ManifestNode* server_ptr = serverLL_head;
+		if( server_ptr == NULL ) return true;
+
+
+	while( server_ptr!= NULL ){
+		char* sptr_file = server_ptr->file_name;
+
+		if( (server_ptr->mver_num != clienth_mver_num) ){
+			//write to file
+			WRITE_AND_CHECKb( update_fd, sptr_file , strlen(sptr_file) );
+			WRITE_AND_CHECKb( update_fd, "\tA\n" , 3 );
+
+			printf("\t\tUpdate Command:%-5s\tFile:%-5s\n", "A", sptr_file);
+
+		}else{
+			printf("\t\tCONFLICT ERROR:\t%-5s\n", sptr_file);
+			return false;
+		}
+
+		//UPDATE
+		server_ptr = server_ptr->next;
+
+		/*DELETE NODES*/
+		delManifestNode( &serverLL_head , sptr_file);
+	}
+	return true;
 }
 
-
-/**
-compare client to server
-**/
-void cmpManifestTreesM1( ManifestNode** clientm_root_addr , ManifestNode** serverm_tree_addr, int update_fd, bool** success  ){
-	if( clientm_root == NULL ){ return;}
-
-	/*Recurse Left*/
-	cmpManifestTreesM1( clientm_root->left, serverm_tree, update_fd, success);
-
-
-	/*COMPARISONS*/
-		char* up_cmd = NULL; //update command
-
-		ManifestNode* clientm_root = *clientm_root_addr;
-		ManifestNode* serv_node = searchManifestTree( (*serverm_tree_addr) , clientm_root->file_name );
-
-
-		//Both Client and Server have curr file
-			if(  serv_node != NULL ){
-				//compares client's live hash with server's hash
-					char* client_live_hash =  generateHash( clientm_root->file_name );
-					int hash_cmp = strcmp( client_live_hash , serv_node->hash); //comparison between hash_codes
-						free( client_live_hash );
-
-				//same manifest version number, but different hashes
-					if( (serv_node->mver_num == clientm_root->mver_num) &&  hash_cmp!= 0 )
-						up_cmd = "U";
-				//diff manifest version number, diff file version number, same hash
-					else if ( (serv_node->mver_num != clientm_root->mver_num) &&  hash_cmp== 0 && (serv_node->fver_num != clientm_root->fver_num) )
-						up_cmd = "M";
-
-		//Only Client has this file
-			}else{
-					//if manifest version number is same
-						if( ((*serverm_tree_addr)->mver_num == clientm_root->mver_num)  )
-							up_cmd = "U";
-					//if manifest version number is DIFFERENT
-						if( ((*serverm_tree_addr)->mver_num != clientm_root->mver_num)  )
-							up_cmd = "D";
-			}
-
-			//update compared tracker
-			clientm_root->compared = true;
-			if( serv_node!=NULL ) serv_node-> compared = true;
-
-
-	/*WRITE Command to Update File*/
-			if( up_cmd == NULL ){
-					printf("CONFLICT (client file): %s\n", clientm_root->file_name);
-					*success = false;
-					return;
-			}else{
-					//write to file
-					WRITE_AND_CHECKb( update_fd, clientm_root->file_name, strlen(clientm_root->file_name) );
-					WRITE_AND_CHECKb( update_fd, "\t" , 1 );
-					WRITE_AND_CHECKb( update_fd, up_cmd , 1 );
-					WRITE_AND_CHECKb( update_fd, "\n" , 1 );
-
-					printf("\tUpdate Command:%-5s\tFile:%-5s\n", up_cmd, clientm_root->file_name);
-			}
-
-	/*Recurse Right*/
-	cmpManifestTreesM1( clientm_root->right, serverm_tree, update_fd, success);
-
-}
 
 ///////////////////////////////////////////////////////////////////////////
 

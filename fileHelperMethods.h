@@ -27,7 +27,7 @@
 	#define READ_AND_CHECKe(file, buf, nbytes) do{ if( read(file, buf , nbytes)<0 ) pEXIT_ERROR("read()"); }while(0)
 	#define READ_AND_CHECKn(file, buf, nbytes) do{ if( read(file, buf , nbytes)<0 ) pRETURN_ERROR("read()", NULL); }while(0)
 
-	#define REMOVE_AND_CHECK(file_name) do{ if(remove(file_name) == 0) fprintf( stderr, "removed file:%s\n",file_name); else fprintf( stderr, "couldn't remove file:%s",file_name);  }while(0) //removes file and prints if successful
+	#define REMOVE_AND_CHECK(file_name) do{ if(remove(file_name) == 0) fprintf( stderr, "\n\tremoved file:%s\n",file_name); else fprintf( stderr, "couldn't remove file:%s",file_name);  }while(0) //removes file and prints if successful
 	#define TESTP printf("\ntest: %d\n", __LINE__)
 
 

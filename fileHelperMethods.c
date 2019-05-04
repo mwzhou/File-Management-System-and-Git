@@ -23,67 +23,6 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 //FILE methods/////////////////////////////////////////////////////////////////////
 
 /**
-Goes through project sent and replaces hash in .Manifest, taking in Project Name and File Name
-**/
-bool replaceHash(char* proj_name, char* file_name){
-
-	//Get paths of manifest file and file to write into manifest file
-	char* manifest_path = combinedPath(proj_name, ".Manifest");
-	char* file_path = combinedPath(proj_name, file_name);
-
-	//opening manifest file and creating file that will overwrite manifest file
-	FILE * fPtr;
-   	FILE * fTemp;
-	fPtr = fopen(manifest_path,"r");
-	fTemp = fopen("replace.tmp","w");
-
-	//setting initial variables	
-	int lineSize = 1024;
-	char buffer[lineSize];
-	char temp[lineSize];
-	//going through file line by line
-	while((fgets(buffer, lineSize, fPtr) )!=NULL){
-
-		//until file path is found, store in new file and continue to next line
-		char* pos = strstr(buffer, file_path);
-		if(pos==NULL){
-			fputs(buffer, fTemp);
-			continue;
-		}
-
-		//find index of original hash in line(stored in buffer)
-		int index = pos - buffer;
-		int times_tab = 0;
-		while(times_tab!=2){
-			if(buffer[index] == '\t')
-				times_tab++;
-			index++;
-		}
-
-		//Altering hash by creating new one and inputting to new File
-		strcpy(temp, buffer);
-		buffer[index] = '\0';
-		char* new_hash = generateHash(file_path);
-		strcat(buffer, new_hash);
-		strcat(buffer, temp+index+strlen(new_hash));
-		fputs(buffer, fTemp);
-		free(new_hash);
-	}
-	
-	//replacing mnifest file with updated manifest file
-	remove(manifest_path);
-	rename("replace.tmp",manifest_path);
-	
-	//Freeing ad closing
-	free(manifest_path);
-	free(file_path);
-	fclose(fPtr);
-   	fclose(fTemp);
-
-	return true;
-}
-
-/**
 goes through file line by line and returns the line_num w/ instance of target
 **/
 int extractLine(char* fpath, char* target){
@@ -95,7 +34,7 @@ int extractLine(char* fpath, char* target){
 
     fp = fopen( fpath , "r");
         if (fp == NULL) pEXIT_ERROR("fopen");
-    
+
     int line_num = 1;
     while ((read = getline(&line, &len, fp)) != -1) {
         if( strstr(line, target) != NULL){ free(line); return line_num; }
@@ -167,7 +106,6 @@ int openFileW(char* file_name){
 
 	return fd;
 }
-
 
 
 
@@ -265,6 +203,18 @@ char* concatString(char* s1, char* s2){
 
 
 /**
+mallocs copy of string
+**/
+char* copyString( char* s1 ){
+	if( s1 == NULL ) return NULL;
+
+	char* cpy = (char*)malloc( strlen(s1) + 1 );
+	strcpy( cpy, s1);
+	return cpy;
+}
+
+
+/**
 returns number of characters in s before the last occurrence of c
 **/
 int lengthBeforeLastOccChar( char* s, char c){
@@ -341,7 +291,6 @@ sends string to socket
 bool sendStringSocketst( int sockfd, char* str, char* sock_type ){
 
 	//send num of bytes
-
 	int send_bytes = strlen(str);
 	if( write(sockfd, &send_bytes,  4) < 0 ) pRETURN_ERROR("write()", false);
 	printf("\tsent %d number of bytes to %s\n",send_bytes, sock_type);
@@ -409,7 +358,6 @@ bool sendFileSocketst( int sockfd, char* file_name, char* sock_type ){
 
 
 /**
-
 recieves file for socket and writes it
 **/
 char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
@@ -451,7 +399,7 @@ char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
 //Tar Methods///////////////////////////////////////////////////////////////////////
 
 /**
-tar a file and send it to socket.Update
+tar a file and send it to socket
 **/
 bool sendTarFilest( int sockfd, char* file_path, char* dir_to_store, char* sock_type ){
 	char* tar_fp =  makeTar( file_path, dir_to_store );
@@ -609,6 +557,7 @@ char* createManifest(char* proj_name){
 		if( manifest_fd < 0){ pRETURN_ERROR("open", NULL); }
 
 	//write, if failed, remove file and return false
+	WRITE_AND_CHECKn( manifest_fd, "1\n" , 2);
 	if( writeToManifest( proj_name, manifest_fd ) == false ){
 		REMOVE_AND_CHECK(manifest_path);
 		free(manifest_path);
@@ -642,15 +591,15 @@ bool writeToManifest(char* path, int  manifest_fd ){
 			char* new_path = combinedPath(path, de->d_name);
 			int np_type = typeOfFile(new_path);
 
-
 			if( np_type  == isDIR ){
 					//recurse
-					writeToManifest( new_path , manifest_fd);
+					writeToManifest(new_path , manifest_fd);
 
 			}else if( np_type == isREG ){
 						char* hash_code = generateHash(new_path);
 						//printf("path:%s\t%s\t\t%s\t%d\n", new_path, path, de->d_name, np_type);
 						//printf("%s\thash:%s\n", new_path, hash_code);
+            //printf("np: %-5s\tp: %-5s\tn: %-5s\th: %-5s\n", new_path, path, de->d_name, hash_code);
 
 						//Write to manifest fd
 						WRITE_AND_CHECKb( manifest_fd, new_path, strlen(new_path));
@@ -660,10 +609,10 @@ bool writeToManifest(char* path, int  manifest_fd ){
 						WRITE_AND_CHECKb( manifest_fd, hash_code, strlen(hash_code));
 						WRITE_AND_CHECKb( manifest_fd, "\n", 1);
 
-						free(hash_code);
+						//free(hash_code);
 			}
 
-			free(new_path);
+			//free(new_path);
 		}
 
 	//close and return
@@ -698,14 +647,14 @@ char* generateHash (char* file_name){
 	}
 	SHA256_Final(hash, &ctx);
 
-	char* output = (char*)malloc( SHA256_DIGEST_LENGTH + 1 );
+	char* output = (char*)malloc( SHA256_DIGEST_LENGTH*2 + 1 );
+  output[ SHA256_DIGEST_LENGTH*2 ] = '\0';
 
 	int i;
 	for(i=0; i<SHA256_DIGEST_LENGTH; i++){
 		sprintf(output+(i*2), "%02x", hash[i]);
 	}
 	//KEEP HERE BECAUSE SPRINTF
-	output[ SHA256_DIGEST_LENGTH ] = '\0';
 	free(buffer);
 
 	//returning hashcode generated

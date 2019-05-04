@@ -91,6 +91,29 @@ void* upgradeServer(  int sockfd, char* proj_name  ){
 			//check if .Update exists on Client
 			if( receiveSig(sockfd) == false) pRETURN_ERROR(".Update doesn't exist on Client",NULL);
 
+		printf("Project name: %s\n",proj_name);
+
+		char* file_to_send = recieveStringSocket(sockfd);
+		if(file_to_send == NULL) {pRETURN_ERROR("recieveStringSocket failed",NULL);}
+
+		//char* file_to_send = combinedPath("Asst1",recieved);
+
+		//printf("recieve: %s\n",file_to_send);
+
+		//if M or A, recieve path of file to send and tar and send the file
+		//if(strcmp(file_to_send,"none")!=0){
+
+			char* bakup_proj = concatString( proj_name, ".bak" );
+			
+			if (sendTarFile( sockfd, file_to_send, bakup_proj) == false) {pRETURN_ERROR("sendTarFile failed",NULL);}
+	
+			//freeing
+			free(bakup_proj);
+		//}
+		
+		//freeing
+		free(file_to_send);
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -106,6 +129,14 @@ void* commitServer( int sockfd, char* proj_name ){
 		//wait from client if update file is empty or doesn't exist
 		if( receiveSig(sockfd) == false) pEXIT_ERROR(".Update file is nonempty on Client!");
 
+	//sending project .Manifest to client
+	char* bakup_proj = concatString( proj_name, ".bak" );
+	char* manifest_path = combinedPath(proj_name,".Manifest");
+	if (sendTarFile( sockfd, manifest_path, bakup_proj) == false) {pRETURN_ERROR("sendTarFile failed",NULL);}
+
+	//freeing
+	free(bakup_proj);
+	free(manifest_path);
 
 	return 0;
 }

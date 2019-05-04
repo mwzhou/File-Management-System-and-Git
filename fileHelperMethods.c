@@ -23,6 +23,64 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 //FILE methods/////////////////////////////////////////////////////////////////////
 
 /**
+Goes through project sent and replaces hash in .Manifest, taking in Project Name and File Name. returns true only if file hash codes have changed
+**/
+bool replaceHash(char* manifest_path){
+
+	bool ret_value = false;
+
+	//opening manifest file and creating file that will overwrite manifest file
+	FILE * fPtr;
+   	FILE * fTemp;
+	fPtr = fopen(manifest_path,"r");
+	fTemp = fopen("replace.tmp","w");
+
+	//setting initial variables	
+	int lineSize = 1024;
+	char buffer[lineSize];
+	char temp[lineSize];
+	//going through file line by line
+	while((fgets(buffer, lineSize, fPtr) )!=NULL){
+
+		//get complete path of file
+		char* end = strstr(buffer,"\t");
+		int index = end-buffer;
+		char* file_path = substr(buffer, 0, index+1);
+
+		//find index of original hash in line(stored in buffer)
+		int times_tab = 0;
+		while(times_tab!=2){
+			if(buffer[index] == '\t')
+				times_tab++;
+			index++;
+		}
+
+		//Altering hash by creating new one and inputting to new File
+		strcpy(temp, buffer);
+		char* og_hash = substr(buffer, index+1, 32);
+		buffer[index] = '\0';
+		char* new_hash = generateHash(file_path);
+		//TODO if new_hash not equal to og_hash enter into .Commit file
+		strcat(buffer, new_hash);
+		strcat(buffer, temp+index+strlen(new_hash));
+		fputs(buffer, fTemp);
+		free(new_hash);
+		free(og_hash);
+		free(file_path);
+	}
+	
+	//replacing mnifest file with updated manifest file
+	remove(manifest_path);
+	rename("replace.tmp",manifest_path);
+	
+	//Fclosing
+	fclose(fPtr);
+   	fclose(fTemp);
+
+	return ret_value;
+}
+
+/**
 goes through file line by line and returns the line_num w/ instance of target
 **/
 int extractLine(char* fpath, char* target){
@@ -654,7 +712,7 @@ char* generateHash (char* file_name){
 	for(i=0; i<SHA256_DIGEST_LENGTH; i++){
 		sprintf(output+(i*2), "%02x", hash[i]);
 	}
-	//KEEP HERE BECAUSE SPRINTF
+
 	free(buffer);
 
 	//returning hashcode generated

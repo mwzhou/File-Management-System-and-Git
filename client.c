@@ -257,17 +257,90 @@ void upgradeClient(char* proj_name){
 
 	/*ERROR CHECK*/
 		//waiting for signal if valid project on server
-		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
-		//check if update path exists on Client
-		char* update_path = combinedPath(proj_name, ".Update");
-		if( sendSig( sockfd, (typeOfFile(update_path)!=isREG )) == false ){ free(update_path); pEXIT_ERROR(".Update file doesn't exist on Client"); }
+			if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
+		//check if update file exists on Client
+			char* update_path = combinedPath(proj_name, ".Update");
+			if( sendSig( sockfd, (typeOfFile(update_path)!=isREG )) == false ){ free(update_path); pEXIT_ERROR(".Update file doesn't exist on Client"); }
+		//If .Update file is empty
+			if( sendSig(sockfd, (sizeOfFile(update_path) <= 0)) == false ){ remove(update_path); free(update_path); printf("\t.Update is empty, project is up to date\n"); return; }
 
 
 	/*OPERATIONS*/
+	//opening update_file
+	char* update_file = readFile(update_path);
+		if( update_file == NULL ) pEXIT_ERROR("reading update");
 
-	//recieving...
+	/*recieving files from Server through backup*/
+		char* backup_proj_path = concatString( proj_name, ".bak" ); //get backup folder_dir
+		char* serv_proj_path = recieveTarFile( sockfd, backup_proj_path);
+			if(serv_proj_path == NULL) pEXIT_ERROR("error recieving directory");
+
+	/*PARSE THROUGH FILE*/
+		char* tok = strtok( update_file, "\n\t");
+		do{
+		//get file
+			char* up_file = tok;
+
+		//get update command
+			tok = strtok(NULL, "\n\t");
+			char* up_cmd = tok;
+				if( strlen(up_cmd)!= 1){ removeDir( serv_proj_path ); pEXIT_ERROR("Invalid Update up_file"); }
+
+
+		//perform operations based on command
+			switch( up_cmd[0] ){
+				case 'U':
+					break;
+
+				case 'M': //replace
+				case 'A':{ //replace
+					//get server version
+					char* fserv_version = combinedPath(backup_proj_path, up_file);
+					//get directory to store
+					int ind_slash = lengthBeforeLastOccChar( up_file, '/');
+					char* dir_to_store = substr(up_file, 0, ind_slash+1);
+
+					//REPLACE FILE
+					if( moveFile( fserv_version , dir_to_store) == false){
+						free(fserv_version); free(dir_to_store); removeDir( serv_proj_path );
+						free(update_path); free(serv_proj_path); free(backup_proj_path); free(update_file);
+						printf("\n\tFILE: %s CMD: %s\n", up_file, up_cmd);
+						pEXIT_ERROR("move or add");
+					}
+
+					free(fserv_version);
+					free(dir_to_store);
+					break;
+
+				}case 'D':{
+					printf("%s\n", up_file);
+					//REMOVE FILE FROM MANIFEST
+					if( removeFromManifest( up_file, proj_name ) == false){
+						removeDir( serv_proj_path );
+						free(update_path); free(serv_proj_path); free(backup_proj_path); free(update_file);
+						printf("\n\tFILE: %s CMD: %s\n", up_file, up_cmd);
+						pEXIT_ERROR("delete");
+					}
+
+					break;
+
+				}default:
+					removeDir( serv_proj_path );
+					pEXIT_ERROR("Invalid Update file");
+			}
+
+		//printf("FILE %s CMD %s\n\n", up_file, up_cmd);
+		}while( (tok = strtok(NULL, "\n\t")) != NULL );
+
+
+	//remove and free
+	removeDir( serv_proj_path );
+	//remove( update_path ); TODO
 
 	free(update_path);
+	free(serv_proj_path);
+	free(backup_proj_path);
+	free(update_file);
 	return;
 }
 ////////////////////////////////////////////////////////////////////////////
@@ -289,7 +362,6 @@ void commitClient(char* proj_name){
 		if( sendSig( sockfd, ( typeOfFile(update_path)!=isUNDEF && sizeOfFile(update_path)!=0 ) ) == false ){ free(update_path); pEXIT_ERROR(".Update file is nonempty on Client!"); } //TODO
 
 	/*OPERATIONS*/
-
 	free(update_path);
 	return;
 }
@@ -391,46 +463,61 @@ void addClient(char* proj_name, char* file_name){
 void removeClient(char* proj_name, char* file_name){
 	printf("%d] Entered command: remove\n", sockfd);
 
+	/*ERROR CHECK*/
 	//check valid arguments
-	if ( typeOfFile(proj_name)!= isDIR ){ pEXIT_ERROR("project name does not exist on client side"); }
+	if ( typeOfFile(proj_name)!= isDIR ) pEXIT_ERROR("project name does not exist on client side");
 
-		//Finding path of manifest file
-	char* manifest_path = combinedPath(proj_name, ".Manifest");
 
-	//finding relative path of file_name
-	char* file_path = combinedPath(proj_name, file_name);
+	char* combined_path = combinedPath( proj_name, file_name );
+	if(removeFromManifest(combined_path , proj_name)==false) pEXIT_ERROR("remove");
 
-	//line to delete
-	int line = extractLine(manifest_path, file_path);
+	free( combined_path );
+	return;
+}
 
-	//Files to read and rewrite in
-	FILE* srcFile = fopen(manifest_path, "r");
-	FILE* tempFile = fopen("deleteFile.tmp","w");
 
-	//inserting into tempFile not include line to delete
-	int lineSize = 1024;
-	char buffer[lineSize];
-	int count = 1;
-	while((fgets(buffer, lineSize, srcFile) )!=NULL){
-		if(line!=count)
-			fputs(buffer,tempFile);
-		count++;
-	}
+
+bool removeFromManifest(char* file_path, char* proj_name){
+	//Finding path of manifest file
+		char* manifest_path = combinedPath(proj_name, ".Manifest");
+
+	/*DELETING FROM FILE AND REWRITING*/
+		//Files to read and rewrite in
+			FILE* srcFile = fopen(manifest_path, "r");
+				if( srcFile < 0 ) pRETURN_ERROR("open", false);
+
+			char* temp_path = combinedPath( proj_name, "deleteFile.tmp" );
+			FILE* tempFile = fopen( temp_path ,"w");
+				if( tempFile < 0 ) pRETURN_ERROR("open", false);
+
+		//finding line to delete
+			int line = extractLine(manifest_path, file_path);
+
+		//rewriting tempfile without line
+			int lineSize = 1024;
+			char buffer[lineSize];
+			int count = 1;
+			while((fgets(buffer, lineSize, srcFile) )!=NULL){
+				if(line!=count)
+					fputs(buffer,tempFile);
+				count++;
+			}
 
 	//replace old file with new file
-	remove(manifest_path);
-	rename("deleteFile.tmp",manifest_path);
+		remove(manifest_path);
+		rename(temp_path,manifest_path);
 
 	//free and close
 	free(manifest_path);
-	free(file_path);
+	free(temp_path);
 	fclose(srcFile);
 	fclose(tempFile);
 
-	return;
+	return true;
 }
-////////////////////////////////////////////////////////////////////////////
 
+
+////////////////////////////////////////////////////////////////////////////
 
 
 //[3.10] CURRENT VERSION/////////////////////////////////////////////////////

@@ -48,6 +48,8 @@
 	char* readFile(char* file_name);
 	int openFileW(char* file_name);
 	FileType typeOfFile(char* file_name);
+	bool moveFile( char* file_path , char* dir_to_store);
+	bool removeDir( char* dir );
 
 	/*String Manipulation Methods*/
 	char* substr(char* s, size_t start_ind, size_t length);
@@ -75,6 +77,7 @@
 	char* unTar( char* tar_filepath );
 	char* makeTar(char* proj_name, char* path_File);
 
+	/*Manifest Methods*/
 	char* createManifest(char* proj_name);
 	bool writeToManifest(char* path, int  manifest_fd );
 	char* generateHash (char* file_name);

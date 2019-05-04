@@ -137,6 +137,46 @@ FileType typeOfFile(char* file_name){
 }
 
 
+/**
+force moves file into the specified directory
+**/
+bool moveFile( char* file_path , char* dir_to_store){
+	//ex] mv -f r1.bak/r1/misc r1/
+
+	int cmd_len = strlen(dir_to_store) + strlen( file_path ) + strlen("mv -f ") + 2;
+	char* sys_cmd = (char*)malloc(cmd_len);
+		//cpy info
+		strcpy( sys_cmd, "mv -f ");
+		strcat( sys_cmd, file_path);
+		strcat( sys_cmd, " ");
+		strcat( sys_cmd, dir_to_store);
+
+	//run cmd
+	if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+
+	free(sys_cmd);
+	return true;
+}
+
+
+/**
+removes directory
+**/
+bool removeDir( char* dir ){
+	//ex] rm -r dir
+	int cmd_len = strlen(dir) + strlen("rm -r ") + 1;
+	char* sys_cmd = (char*)malloc(cmd_len);
+		//cpy info
+		strcpy( sys_cmd, "rm -r ");
+		strcat( sys_cmd, dir);
+
+		//run cmd
+		if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+
+		free(sys_cmd);
+		return true;
+}
+
 
 //STRING MANIPULATION methods/////////////////////////////////////////////////////////////////////
 
@@ -558,12 +598,15 @@ char* createManifest(char* proj_name){
 
 	//write, if failed, remove file and return false
 	WRITE_AND_CHECKn( manifest_fd, "1\n" , 2);
+
 	if( writeToManifest( proj_name, manifest_fd ) == false ){
 		REMOVE_AND_CHECK(manifest_path);
 		free(manifest_path);
 		close(manifest_fd);
 		return NULL;
 	}
+
+	WRITE_AND_CHECKn( manifest_fd, "\n" , 1);
 
 	close(manifest_fd);
 	return manifest_path;

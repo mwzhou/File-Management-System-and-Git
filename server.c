@@ -77,15 +77,22 @@ void updateServer(  int sockfd, char* proj_name  ){
 
 //[3.3] UPGRADE//////////////////////////////////////////////////////////////
 void upgradeServer(  int sockfd, char* proj_name  ){
-		printf("\nEntered command: upgrade\n");
+	printf("\nEntered command: upgrade\n");
 
-		/*ERROR CHECK*/
-			//check if project doesn't exist on Server
-			if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
-			//check if .Update exists on Client
-			if( receiveSig(sockfd) == false) pRETURN_ERRORvoid(".Update doesn't exist on Client");
+	/*ERROR CHECK*/
+		//check if project doesn't exist on Server
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
+		//check if .Update exists on Client
+		if( receiveSig(sockfd) == false){  printf("\tPlease update first (no update file on client)\n"); return;  }
+		//check if .Update file is emptry
+		if( receiveSig(sockfd) == false){ printf("\tProject is up to date\n"); return; }
 
 
+	/*OPERATIONS*/
+	/**SEND project over to client**/
+		char* backup_proj_path = concatString( proj_name, ".bak" ); //get backup folder_dir
+		if ( sendTarFile(sockfd, proj_name, backup_proj_path) == false ){ pRETURN_ERRORvoid("error sending .Manifest file"); }
+   	free(backup_proj_path);
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -378,7 +385,7 @@ int main(int argc, char * argv[]){
 	//if accept failed
 	if(curr_socket<0){ pRETURN_ERROR("Connection to client failed",-1); }
 
-	if(close(overall_socket) < 0) pRETURN_ERROR("Error on Close",-1); b
+	if(close(overall_socket) < 0) pRETURN_ERROR("Error on Close",-1);
 	return 0;	//initialize overall_socket
 
 }

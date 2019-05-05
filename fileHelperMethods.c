@@ -32,12 +32,12 @@ bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name){
    	FILE * fTemp;
 	fPtr = fopen(manifest_path,"r");
 	if (fPtr == NULL) pEXIT_ERROR("fopen");
-	
+
 	char* temp_path = combinedPath(proj_name,"replace.tmp");
 	fTemp = fopen(temp_path,"w");
 	if (fTemp == NULL) pEXIT_ERROR("fopen");
 
-	//setting initial variables	
+	//setting initial variables
 	int lineSize = 1024;
 	char buffer[lineSize];
 	char temp[lineSize];
@@ -87,7 +87,7 @@ bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name){
 			fputs("\t", commitFile);
 			fputs(og_hash, commitFile);
 			fputs("\n", commitFile);
-			
+
 		}
 
 		//entering changed hash into future replacement manifest file
@@ -102,11 +102,11 @@ bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name){
 		free(og_hash);
 		free(file_path);
 	}
-	
+
 	//replacing mnifest file with updated manifest file
 	remove(manifest_path);
 	rename(temp_path,manifest_path);
-	
+
 	//Fclosing
 	fclose(fPtr);
    	fclose(fTemp);
@@ -460,7 +460,6 @@ char* recieveStringSocketst( int sockfd, char* sock_type ){
 note: file_name must just be the project_name and the file_name, not the path
 **/
 bool sendFileSocketst( int sockfd, char* file_name, char* sock_type ){
-
 	/*SEND file_name*/
 	if ( sendStringSocketst(sockfd, file_name, sock_type) == false ){ return false; }
 
@@ -518,7 +517,7 @@ char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
 		int len;
 		char buffer[1024];
 		int remain_data = file_size;
-		while ( ((len = recv(sockfd, buffer, 1024, 0)) > 0) && (remain_data > 0) ){
+		while ( (remain_data > 0)  && ((len = recv(sockfd, buffer, 1024, 0)) > 0) ){
 						 fwrite(buffer, 1, len, received_file);
 						 remain_data -= len;
 		}

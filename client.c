@@ -836,8 +836,6 @@ void rollbackClient(char* proj_name, char* version){
 		int v_num = atoi(version);
 		if(  sendSig( sockfd, (v_num <= 0) ) == false ) pEXIT_ERROR("invalid version number");
 
-	//TODO
-
 	return;
 }
 //////////////////////////////////////////////////////////////////////////////

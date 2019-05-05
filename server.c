@@ -175,37 +175,11 @@ void pushServer(  int sockfd, char* proj_name  ){
 	free(commitServer);
 	//TODO expire All other commits from other cliets if commit files are the same
 
-	//Get server's current project version to copy and rename project.
 	char* manifest_path = combinedPath(proj_name, ".Manifest");
-	FILE* mP = fopen(manifest_path,"r");
-	int count = 0;
-	char* og_pNum;
-	int lineSize = 1024;
-	char buffer[lineSize];
+	//Get server's current project version to copy and rename project.
+	bool store = storeCurrentVersion(proj_name, manifest_path, bakup_proj);
+	if (!store){pRETURN_ERRORvoid("Saving version failed");}
 
-	//get project Number
-	while(count<2){
-		fgets(buffer, lineSize, mP);
-		count++;
-		if(count==2){
-			og_pNum = substr(buffer,0,2);
-		}
-	}
-	//go back to beginning of file and close
-	rewind(mP);
-	fclose(mP);
-
-	//creat bakup version
-	char* copyPath = combinedPath(bakup_proj,og_pNum);
-
-	//copy backup version into into directory
-	bool s = copyDir(proj_name, copyPath);
-	if(s==false){pRETURN_ERRORvoid("copying failed");}
-
-	//tar version file and delete normal file
-	makeTar(copyPath, bakup_proj);
-	bool delete_version_file = removeDir(copyPath);
-	if(delete_version_file==false){pRETURN_ERRORvoid("Removing directory failed");}
 
 	//TODO UMAD
 
@@ -215,6 +189,8 @@ void pushServer(  int sockfd, char* proj_name  ){
 	FILE* tempFile = fopen(temp_path,"w");
 	FILE* cmP = fopen(manifest_client_path, "r");
 	int line = 0;
+	int lineSize = 1024;
+	char buffer[lineSize];
 	while((fgets(buffer, lineSize, cmP) )!=NULL)
         {
 		line++;
@@ -248,14 +224,52 @@ void pushServer(  int sockfd, char* proj_name  ){
 	if(delete_client_files==false){pRETURN_ERRORvoid("Removing directory failed");}
 	free(manifest_path);
 	free(temp_path);
-	free(og_pNum);
 	free(commit_client_path);
 	free(commit_server_path);
 	free(manifest_client_path);
-	free(copyPath);
 	free(bakup_proj);
 }
 ////////////////////////////////////////////////////////////////////////
+
+
+bool storeCurrentVersion(char* proj_name, char* manifest_path, char* bakup_proj){
+	FILE* mP = fopen(manifest_path,"r");
+	int count = 0;
+	char* og_pNum;
+	int lineSize = 1024;
+	char buffer[lineSize];
+
+	//get project Number
+	while(count<2){
+		fgets(buffer, lineSize, mP);
+		count++;
+		if(count==2){
+			og_pNum = substr(buffer,0,2);
+		}
+	}
+	//go back to beginning of file and close
+	rewind(mP);
+	fclose(mP);
+
+	//creat bakup version
+	char* name_will_be = combinedPath(bakup_proj, proj_name);
+	char* copyPath = combinedPath(bakup_proj,og_pNum);
+
+	//copy backup version into into directory and rename
+	bool s = copyDir(proj_name, bakup_proj);
+	if(s==false){pRETURN_ERROR("copying failed",false);}
+	rename(name_will_be, copyPath);
+
+	//tar version file and delete normal file
+	makeTar(copyPath, bakup_proj);
+	bool delete_version_file = removeDir(copyPath);
+	if(delete_version_file==false){pRETURN_ERROR("Removing directory failed",false);}
+
+	free(og_pNum);
+	free(copyPath);
+
+	return true;
+}
 
 
 //[3.6] CREATE//////////////////////////////////////////////////////////////
@@ -378,8 +392,51 @@ void rollbackServer(  int sockfd, char* proj_name, char* version_num){ //TODO Cl
 		//wait from client if version number is invalid
 		if( receiveSig(sockfd) == false) pRETURN_ERRORvoid("Version Number is invalid!");
 
-		//TODO
+	//getting directory in which to unTar file	
+	char* fullPath = realpath(proj_name,NULL);
+	int index_end = lengthBeforeLastOccChar(fullPath , '/');
+	char* dir_to_store = substr(fullPath, 0, index_end+1);
 
+
+	//getting path of tared versions
+	char* versionTar = concatString(version_num,".tgz");
+	char* back_proj = concatString(proj_name, ".bak");
+	char* versionPath = combinedPath(back_proj, versionTar);
+
+	//deleting all tar files post requestiod version number
+	struct dirent *de;
+	DIR *dr = opendir(back_proj);
+	if(dr==NULL){pRETURN_ERRORvoid("directory could not be opened");}
+
+	while((de = readdir(dr))!=NULL){
+		char* char_vNum = substr(de->d_name, 0, 2);
+		int curr_vNum = atoi(char_vNum);
+			
+		//delete if tar file is a greater version num than the one requested
+		if(curr_vNum > atoi(version_num)){
+			char* dir_to_delete = combinedPath(back_proj, de->d_name);
+			removeDir(dir_to_delete);
+			free(dir_to_delete);
+		}
+
+		//replace current project with version number requested
+		else if(curr_vNum == atoi(version_num)){
+			char* name = unTar(versionPath);
+			moveFile(name, dir_to_store);
+			removeDir(proj_name);
+			char* version_file_path = combinedPath(dir_to_store, version_num);
+			rename(version_file_path,proj_name);
+			free(name);
+			free(version_file_path);
+		}
+		free(char_vNum);
+	}
+
+	free(fullPath);	
+	free(dir_to_store);
+	free(versionTar);
+	free(back_proj);
+	free(versionPath);
 	return;
 }
 ////////////////////////////////////////////////////////////////////////

@@ -182,16 +182,17 @@ bool removeDir( char* dir ){
 Copies directory or file to other location
 **/
 bool copyDir(char* proj_name, char* copyPath){
-	int cmd_len = strlen("cp -r ")+strlen(proj_name) + strlen(" ") + strlen(copyPath) + 2;
+	int cmd_len = strlen("cp -r ")+strlen(realpath(proj_name,NULL)) + strlen(" ") + strlen(copyPath) + 2;
 	char* sys_cmd = (char*)malloc(cmd_len);
 		//cpy info
 		strcpy( sys_cmd, "cp -r ");
-		strcat( sys_cmd, proj_name);
+		strcat( sys_cmd, realpath(proj_name,NULL));
 		strcat( sys_cmd, " ");
 		strcat( sys_cmd, copyPath);
 	//copy Project to backUp directory with version number
 	system(sys_cmd);
 	if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+	//printf("%s\n",sys_cmd);
 	free(sys_cmd);
 	return true;
 }
@@ -588,6 +589,7 @@ char* makeTar(char* file_path, char* dir_to_store){
 
 	//RUN SYSTEM COMMAND
 		if( system(sys_cmd)< 0 ){free( sys_cmd ); free( root_dir ); pRETURN_ERROR("system", NULL); }
+
 			//free
 			free( sys_cmd );
 

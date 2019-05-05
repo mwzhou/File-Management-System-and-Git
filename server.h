@@ -19,4 +19,6 @@
 /////////////////////////////////////////////////////////////////////////
 
 
+bool storeCurrentVersion(char* proj_name, char* manifest_path, char* bakup_proj);
+
 #endif

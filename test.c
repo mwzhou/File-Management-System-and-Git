@@ -18,30 +18,48 @@
 
 int main(int argc, char * argv[]){
 
-	char* buffer = "Asst1/memgrind.c	1	894307907589789478378074389078";
-	//char* proj_name = "Asst1";
+	char* version_num = "5";
+	char* proj_name = "Asst1";
 
-	char* end = strstr(buffer,"\t");
-	int index_end = end-buffer;
-	char* start = strstr(buffer,"/");
-	int index_start = start-buffer;
-	printf("%d\t%d\t%d\n",index_start, index_end, (index_end-index_start)+1);
-	char* file_path = substr(buffer, index_start+1, (index_end-index_start)); 
-	printf("%s\n",file_path);
+	char* fullPath = realpath("Asst1",NULL);
+	int index_end = lengthBeforeLastOccChar(fullPath , '/');
+	char* dir_to_store = substr(fullPath, 0, index_end+1);
+	free(fullPath);
+	
 
-	/*char* systemCall = concatString("cp ",proj_name);
-	systemCall = concatString(concatString, " ");
-	systemCall = concatString(concatString, copyPath);
+	//getting path of tared version
+	char* versionTar = concatString("5",".tgz");
+	char* back_proj = concatString("Asst1", ".bak");
+	char* versionPath = combinedPath(back_proj, versionTar);
 
-	system(sys_cmd);*/
+	//deleting all tar files post requestiod version number
+	struct dirent *de;
+	DIR *dr = opendir(back_proj);
+	//if(dr==NULL){pRETURN_ERRORvoid("directory could not be opened");}
 
-	/*char* dir_to_send = concatString(proj_name,".to_send");
-	struct stat st = {0};
-	//check if directory exists, otherwise create it
-	if(stat(dir_to_send, &st) == -1){
-		mkdir(dir_to_send, 0777);
-	}*/
+	while((de = readdir(dr))!=NULL){
+		char* char_vNum = substr(de->d_name, 0, 2);
+		int curr_vNum = atoi(char_vNum);
+			
+		//delete if tar file is a greater version num than the one requested
+		if(curr_vNum > atoi(version_num)){
+			char* dir_to_delete = combinedPath(back_proj, de->d_name);
+			removeDir(dir_to_delete);
+			free(dir_to_delete);
+		}
 
+		//replace current project with version number requested
+		else if(curr_vNum == atoi(version_num)){
+			char* name = unTar(versionPath);
+			moveFile(name, dir_to_store);
+			removeDir(proj_name);
+			char* version_file_path = combinedPath(dir_to_store, version_num);
+			rename(version_file_path,proj_name);
+			free(name);
+			free(version_file_path);
+		}
+		free(char_vNum);
+	}
 
 	return 0;
 

@@ -16,7 +16,6 @@
 
 
 
-
 int main(int argc, char * argv[]){
 
 	char* buffer = "Asst1/memgrind.c	1	894307907589789478378074389078";
@@ -42,7 +41,6 @@ int main(int argc, char * argv[]){
 	if(stat(dir_to_send, &st) == -1){
 		mkdir(dir_to_send, 0777);
 	}*/
-
 
 
 	return 0;

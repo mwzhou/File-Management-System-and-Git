@@ -95,7 +95,6 @@ void checkoutClient(char* proj_name){ //TODO
 //[3.2] UPDATE//////////////////////////////////////////////////////////////
 void updateClient(char* proj_name){
 	printf("%d] Entered command: update\n", sockfd);
-
 	sendArgsToServer("update", proj_name, NULL);
 
 	/**ERROR CHECK**/
@@ -107,6 +106,7 @@ void updateClient(char* proj_name){
 
 	/*recieve manifest files*/
 		//recieving manifest file from server
+			printf("\tRecieving Manifest file from Server\n");
 			char* store_manifest_serv_dir = concatString(proj_name, ".bak");  //make path to store manifest file recieved from Server
 			char* manifest_serv_path = recieveTarFile(sockfd, store_manifest_serv_dir);
 				free(store_manifest_serv_dir);
@@ -115,15 +115,13 @@ void updateClient(char* proj_name){
 		//get manifest file for client
 			char* manifest_client_path = combinedPath( proj_name, ".Manifest" );
 
-
 		/*Get items!*/
 				//get path for .Update file
 				char* update_path = combinedPath( proj_name, ".Update" );
 				//create file
 				int update_fd = openFileW( update_path );
 					if( update_fd < 0 ){ 	free(manifest_client_path); free(manifest_serv_path); free(update_path ); pEXIT_ERROR("update"); }
-
-
+  
 		/* Comparison Linked Lists should be free after write*/
 			ManifestNode* clientLL = buildManifestLL( manifest_client_path );
 				free(manifest_client_path);
@@ -136,15 +134,17 @@ void updateClient(char* proj_name){
 	/*WRITE UPDATE FILE AND DO COMPARISONS*/
 	/*Comparisons - writes update file and makes comparisons with two manifest trees*/
 		printf("\n\tWill start writing .Update file: listing all updates...\n");
-		//write update file
+
+	//write update file
 		bool write_success = writeUpdateFile( clientLL , serverLL, update_fd );
 		if( write_success == false ){
 			REMOVE_AND_CHECK(update_path);
-			free(update_path);
-			pEXIT_ERROR("Update conflict!");
+			printf("\tUpdate conflict!\n");
+		}else{
+			if( sizeOfFile(update_path) == 0 ){
+				printf("\t\tCompletely up to date with Server. No updates neccessary\n");
+			}
 		}
-
-
 
 	//free and return
 		close( update_fd );
@@ -183,6 +183,10 @@ bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head 
 			//diff manifest version number, diff file version number, same hash live hash and client
 				}else if ( (serv_cmpnode->mver_num != client_ptr->mver_num) &&  (strcmp( cptr_livehash , client_ptr->hash) == 0)  && (serv_cmpnode->fver_num != client_ptr->fver_num) ){
 				   	up_cmd = "M";
+
+				//if exactly the same
+				}else if( (serv_cmpnode->mver_num == client_ptr->mver_num) &&  (strcmp( cptr_livehash , serv_cmpnode->hash) == 0)  && (serv_cmpnode->fver_num == client_ptr->fver_num)  ){
+						up_cmd = "N";
 				}
 			//free
 			free(cptr_livehash);
@@ -198,11 +202,12 @@ bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head 
 				}
 		}
 
+
 		/*WRITING TO FILE*/
 		if(up_cmd == NULL){
 				printf("\t\tCONFLICT ERROR:\t%5s\n", cptr_file);
 				return false;
-		}else{
+		}else if( up_cmd[0]!= 'N'){
 			//write to file
 			WRITE_AND_CHECKb( update_fd, cptr_file , strlen(cptr_file) );
 			WRITE_AND_CHECKb( update_fd, "\t" , 1 );
@@ -219,9 +224,8 @@ bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head 
 		if(serv_cmpnode != NULL) delManifestNode( &serverLL_head, cptr_file);
 		delManifestNode( &clientLL_head, cptr_file);
 	}
-
-
-
+  
+  
 	/*Comparison rest of Server files*/
 	ManifestNode* server_ptr = serverLL_head;
 		if( server_ptr == NULL ) return true;
@@ -298,7 +302,7 @@ void upgradeClient(char* proj_name){
 				case 'U':
 					break;
 
-				case 'M': //replace
+				case 'M':
 				case 'A':{ //replace
 					//get server version
 					char* fserv_version = combinedPath(backup_proj_path, up_file);
@@ -317,20 +321,13 @@ void upgradeClient(char* proj_name){
 					free(fserv_version);
 					free(dir_to_store);
 					break;
-
-				}case 'D':{
-					printf("%s\n", up_file);
-					//REMOVE FILE FROM MANIFEST
-					if( removeFromManifest( up_file, proj_name ) == false){
-						removeDir( serv_proj_path );
-						free(update_path); free(serv_proj_path); free(backup_proj_path); free(update_file);
-						printf("\n\tFILE: %s CMD: %s\n", up_file, up_cmd);
-						pEXIT_ERROR("delete");
-					}
-
+          
+				}case 'D':
+					//REMOVE FILE
+					remove(up_file);
 					break;
 
-				}default:
+				default:
 					removeDir( serv_proj_path );
 					pEXIT_ERROR("Invalid Update file");
 			}
@@ -338,11 +335,17 @@ void upgradeClient(char* proj_name){
 		//printf("FILE %s CMD %s\n\n", up_file, up_cmd);
 		}while( (tok = strtok(NULL, "\n\t")) != NULL );
 
+	//replace Manifest w/ Server's manifest
+		//get server version
+		char* fserv_manifest = combinedPath(backup_proj_path, ".Manifest");
+		if( moveFile( fserv_manifest , proj_name ) == false){
+				PRINT_ERROR("move");
+		}
 
 	//remove and free
 	removeDir( serv_proj_path );
-	//remove( update_path ); TODO
-
+	remove( update_path );
+	free( fserv_manifest );
 	free(update_path);
 	free(serv_proj_path);
 	free(backup_proj_path);
@@ -356,112 +359,133 @@ void upgradeClient(char* proj_name){
 //[3.4] COMMIT//////////////////////////////////////////////////////////////
 void commitClient(char* proj_name){
 	printf("%d] Entered command: commit\n", sockfd);
+	sendArgsToServer("commit", proj_name, NULL);
 
-	//sending arguments to server
-		sendArgsToServer("commit", proj_name, NULL);
+	/**ERROR CHECK**/
+		//check if project name doesn't exist on Server
+		if( receiveSig(sockfd) == false) pEXIT_ERROR("project does not exist on Server");
+		//check if manifest doesn't exist on Server
+		if( receiveSig(sockfd) == false ) pEXIT_ERROR(".Manifest file does not exist on Server");
+		//check if manifest doesn't exist on client
+		char* client_manifest = combinedPath( proj_name, ".Manifest" );
+		if( sendSig(sockfd,  (typeOfFile(client_manifest)!= isREG ) ) == false ){ pEXIT_ERROR(".Manifest does not exist on Client"); }
 
-	/*ERROR CHECK*/
-		//waiting for signal if valid project on server
-		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
-		//check if update file exists and is NOT empty
-		char* update_path = combinedPath(proj_name, ".Update");
-		if( sendSig( sockfd, ( typeOfFile(update_path)!=isUNDEF && sizeOfFile(update_path)!=0 ) ) == false ){ free(update_path); pEXIT_ERROR(".Update file is nonempty on Client!"); } //TODO
+	//retrieve manifest from server
+		char* backup_proj = concatString( proj_name, ".bak" );
+		printf("\n\tRecieving Manifest file from Server...\n");
+		char* server_manifest = recieveTarFile( sockfd, backup_proj );
+			if( server_manifest == NULL ) pEXIT_ERROR("retireving server's Manifest");
 
-	//recieve tar file and get path of server's .Manifest
-	char* dir_to_store = concatString(proj_name,".bak");
-	char* serverManifest = recieveTarFile( sockfd, dir_to_store);
-	char* clientManifest = combinedPath(proj_name, ".Manifest");
+	/*Create Linked Lists for both Manifests*/
+		ManifestNode* clientLL = buildManifestLL( client_manifest );
+		ManifestNode* serverLL = buildManifestLL( server_manifest );
 
-	char* commitFile = combinedPath(proj_name,".Commit");
-	
-	//opening Manifest Files and creating commit file
-	FILE* sF = fopen(serverManifest,"r");
-	 if (sF == NULL) pEXIT_ERROR("fopen");
-	FILE* cF = fopen(clientManifest,"a+");
-	 if (cF == NULL) pEXIT_ERROR("fopen");
-	FILE* newFile = fopen(commitFile, "w");
-	 if (newFile == NULL) pEXIT_ERROR("fopen");
+		//check if manifest versions are the same
+		if( sendSig(sockfd, (clientLL->mver_num != serverLL->mver_num ) ) == false){
+			printf("\tManifest Versions are different, waiting for user to update Manifest Version\n");
+			return;
+		}
 
-	//setting initial variables
-	int lineSize = 1024;	
-	char buffer[lineSize];
-	char bufferS[lineSize];
-	char bufferC[lineSize];
-	
-	//checking if version of manifest files are the same, return error
-	fgets(bufferS, lineSize, sF) ;
-	fgets(bufferC, lineSize, cF) ;
-	if(strcmp(bufferS,bufferC)!=0){pEXIT_ERROR("Update local project first!");}
+		/*CREATING Commit file*/
+		char* commit_path = combinedPath(proj_name,".Commit");
+		FILE* commit_fd = fopen( commit_path , "w" );
+			if( commit_fd == NULL ) pEXIT_ERROR("open .Commit File");
 
-	//create commit file
-	while((fgets(buffer, lineSize, cF) )!=NULL){
+		/*WRITE COMMIT FILE*/
+		printf("\n\tWill start writing .Commit file: listing all commits...\n");
 
-		if(strlen(buffer)<SHA256_DIGEST_LENGTH*2)
-			continue;
-
-		//get complete path of file
-		char* end = strstr(buffer,"\t");
-		int index = end-buffer;
-		char* file_path = substr(buffer, 0, index+1);
-
-		//find index of original hash in line(stored in buffer)
-		int times_tab = 0;
-		int vNum = 0;
-		while(times_tab!=2){
-			if(buffer[index] == '\t'){
-				times_tab++;
-				if(times_tab==1){
-					char* num = substr(buffer, index+1, 2);
-					vNum = atoi(num);
-					free(num);
-				}
+		//if failed to write commit file
+		if( sendSig( sockfd, (!writeCommitFile( clientLL, serverLL, commit_fd))) == false ){
+			REMOVE_AND_CHECK( commit_path );
+			printf("\tCOMMIT FAIL please resynch repository\n");
+		//success
+		}else{
+			if( sizeOfFile(commit_path) == 0){
+				printf("\t\tNo commits to do, completely up to date with server!\n\n");
 			}
-			index++;
+			//send tar file to server
+			printf("\tSending Commit file to Server...\n");
+			if( sendTarFile( sockfd, commit_path, backup_proj) == false )
+				printf("\terror sending commit file\n");
 		}
 
-		//increment version number
-		vNum++;
-
-		//getting old and new Hash's
-		char* og_hash = substr(buffer, index, SHA256_DIGEST_LENGTH*2+1);
-		char* new_hash = generateHash(file_path);
-
-		//if new_hash not equal to og_hash enter into .Commit file(with v num incremented)
-		if(strcmp(og_hash,new_hash)!=0){
-			int len = (int)((ceil(log10(vNum))+1)*sizeof(char));
-			char str[len];
-			sprintf(str, "%d", vNum);
-
-			//putting into .Commit
-			fputs(file_path, newFile);
-			fputs("\t", newFile);
-			fputs(str, newFile);
-			fputs("\t", newFile);
-			fputs(new_hash, newFile);
-			fputs("\n", newFile);
-			
-		}
-
-		//freeing
-		free(new_hash);
-		free(og_hash);
-		free(file_path);
-	}
-	
-	//delete server's .Manifest from client side
-	unlink(serverManifest);
-
-	//freeing and closing
-	fclose(sF);
-	fclose(cF);
-	fclose(newFile);
-	free(update_path);
-	free(dir_to_store);
-	free(serverManifest);
-	free(clientManifest);
-	free(commitFile);
-	return;
+		//FREE
+		fclose(commit_fd);
+		free(commit_path);
+		free(client_manifest);
+		free(backup_proj);
+		free(server_manifest);
 }
+
+
+/**
+Check Commit Validity
+**/
+bool writeCommitFile( ManifestNode* clientLL_head, ManifestNode* serverLL_head, FILE* commit_fd ){
+	char* commit_cmd = NULL;
+
+	/*Compare Client to Server*/
+	ManifestNode* cptr = clientLL_head;
+	while( cptr!=NULL ){
+		char* cptr_fname = cptr->file_name;
+
+		//Compare hashes to live hash and get appropriate version number
+		char* cptr_livehash = generateHash(cptr_fname);
+			if( cptr_livehash == NULL ) return false;
+		//if hashes are different, increment the file version number
+		int cptr_newv_num = (strcmp( cptr_livehash, cptr->hash ) != 0) ? cptr->fver_num+1 : cptr->fver_num;
+
+		ManifestNode* found_servnode = searchManifestNode( serverLL_head, cptr_fname );
+		//if new client is greater
+		if( found_servnode != NULL && (cptr_newv_num > found_servnode->fver_num) ){
+			commit_cmd = "U";
+		//in client's manifest but not in servers
+		}else if( found_servnode == NULL ){
+			commit_cmd = "A";
+		//in both .Manifests and exactly the same
+	}else if( found_servnode != NULL && (cptr_newv_num == found_servnode->fver_num) && (strcmp(cptr_livehash, found_servnode->hash)==0)){
+			commit_cmd = "N"; //ignore
+		}
+
+
+		/*OUTPUT*/
+		if( commit_cmd == NULL){
+			printf("\t\tCONFLICT ERROR:\t%5s\n", cptr_fname);
+			return false;
+		}else if( commit_cmd[0] != 'N'){
+			fprintf( commit_fd , "%s\t%s\t%d\t%s\n" , cptr_fname, commit_cmd, cptr_newv_num, cptr_livehash);
+			printf("\t\tCommit Command:%-5s\tFile:%-5s\n", commit_cmd, cptr_fname);
+		}
+
+		//UPDATE client ptr
+		cptr = cptr-> next;
+		free(cptr_livehash);
+
+		//DELETE entry from both lists
+		if(found_servnode != NULL) delManifestNode( &serverLL_head, cptr_fname);
+		delManifestNode( &clientLL_head, cptr_fname);
+	}
+
+
+	/*Compare Server to rest of Client*/
+	if( serverLL_head == NULL ) return true; //if no files solely on server
+	ManifestNode* sptr = clientLL_head;
+	while( sptr != NULL ){
+		char* sptr_fname = sptr->file_name;
+		//write
+		fprintf( commit_fd , "%s\tR\t%d\n" , sptr_fname, sptr->fver_num );
+		printf("\t\tCommit Command:%-5s\tFile:%-5s\n", "R", sptr_fname);
+		//update
+		sptr = sptr->next;
+
+		//delete
+		delManifestNode( &serverLL_head, sptr_fname);
+	}
+
+	return true;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////
 
 
@@ -596,8 +620,6 @@ void createClient(char* proj_name){
 	char* manifest_path = recieveTarFile( sockfd, proj_name );
 		if(manifest_path == NULL){ pEXIT_ERROR("recieving .Manifest file from Server"); }
 
-	//TODO
-
 	//free and return
 	printf("\n\tSuccessfully created project: %s on Client side!\n", proj_name);
 	free(manifest_path);
@@ -609,6 +631,17 @@ void createClient(char* proj_name){
 
 //[3.7] DESTROY//////////////////////////////////////////////////////////////
 void destroyClient(char* proj_name){
+	/*ERROR CHECK*/
+		//waiting for signal if valid project on server
+		if( receiveSig(sockfd) == false ) pEXIT_ERROR("project doesn't exist on server");
+
+	/*Wait for results of remove*/
+	if( receiveSig(sockfd) == false ){
+		pEXIT_ERROR("failed to remove on server");
+	}else{
+		printf("Successfully deleted project on server!");
+	}
+
 	return;
 }
 ////////////////////////////////////////////////////////////////////////////
@@ -764,6 +797,27 @@ void historyClient(char* proj_name){
 	printf("%d] Entered command: history\n", sockfd);
 	sendArgsToServer("history", proj_name, NULL);
 
+	/*ERROR CHECK*/
+		//waiting for signal if valid project on server
+		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
+		if( receiveSig(sockfd) == false) pEXIT_ERROR(".History file doesn't exist on server");
+
+	/*Recieving History file from Server*/
+		printf("\tRecieving History file from Client...\n");
+		char* backup_proj = concatString( proj_name, ".bak" );
+		char* history_path = recieveTarFile( sockfd, backup_proj );
+			if( history_path == NULL ){ free(backup_proj); free(history_path); pEXIT_ERROR("recieving History Tar file"); }
+		printf("\tSuccessfully recieved file from Client...\n");
+
+		char* hist_str = readFile( history_path );
+			if( hist_str == NULL ){ pEXIT_ERROR("reading History file"); }
+
+		//output history file
+		printf("\n%s\n", hist_str );
+
+	free(hist_str);
+	free(backup_proj);
+	free(history_path);
 	return;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -776,10 +830,13 @@ void rollbackClient(char* proj_name, char* version){
 	sendArgsToServer("rollback", proj_name, version);
 
 	/*ERROR check*/
-	//check version number
-	int v_num = atoi(version);
-	if(  sendSig( sockfd, (v_num <= 0) ) == false ) pEXIT_ERROR("invalid version number");
+		//check if project exists on server
+		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on Server");
+		//check version number
+		int v_num = atoi(version);
+		if(  sendSig( sockfd, (v_num <= 0) ) == false ) pEXIT_ERROR("invalid version number");
 
+	//TODO
 
 	return;
 }

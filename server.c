@@ -49,8 +49,6 @@ void checkoutServer( int sockfd, char* proj_name ){
 
 
 //[3.2] UPDATE//////////////////////////////////////////////////////////////////////
-
-
 /*
 update
 */
@@ -63,7 +61,6 @@ void updateServer(  int sockfd, char* proj_name  ){
 		//check if manifest doesn't on Server
 		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
 		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERRORvoid(".Manifest file doesn't exist in project on server"); }
-
 
 
 	/*SEND manifest file to client*/
@@ -88,7 +85,6 @@ void upgradeServer(  int sockfd, char* proj_name  ){
 		//check if .Update file is emptry
 		if( receiveSig(sockfd) == false){ printf("\tProject is up to date\n"); return; }
 
-
 	/*OPERATIONS*/
 	/**SEND project over to client**/
 		char* backup_proj_path = concatString( proj_name, ".bak" ); //get backup folder_dir
@@ -101,23 +97,38 @@ void upgradeServer(  int sockfd, char* proj_name  ){
 //[3.4] COMMIT//////////////////////////////////////////////////////////////
 void commitServer( int sockfd, char* proj_name ){
 	printf("\n\tEntered command: commit\n");
-
 	/*ERROR CHECK*/
-		//check if project exists on Server
-		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
-		//wait from client if update file is empty or doesn't exist
-		if( receiveSig(sockfd) == false) pRETURN_ERRORvoid(".Update file is nonempty on Client!");
+		//check if project name doesn't exist on Server
+		if( sendSig(sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false ) pRETURN_ERRORvoid("project doesn't exist on server");
+		//check if manifest doesn't on Server
+		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
+		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERRORvoid(".Manifest file doesn't exist in project on server"); }
+		//check if manifest exists on Client
+		if( receiveSig(sockfd) == false ) pRETURN_ERRORvoid(".Manifest file does not exist on Client");
 
-	//sending project .Manifest to client
-	char* bakup_proj = concatString( proj_name, ".bak" );
-	char* manifest_path = combinedPath(proj_name,".Manifest");
-	if (sendTarFile( sockfd, manifest_path, bakup_proj) == false) {pRETURN_ERRORvoid("sendTarFile failed");}
 
-	//freeing
-	free(bakup_proj);
-	free(manifest_path);
+	//send .Manifest to Client
+		printf("\n\tSending Manifest file over to Client...\n");
+		char* backup_proj = concatString( proj_name, ".bak" );
+		if( sendTarFile(sockfd, manifest_path, backup_proj) == false ) pRETURN_ERRORvoid("sending Manifest File");
 
-	return ;
+	//check if .Manifest versions are different
+		if( receiveSig( sockfd ) == false){
+			printf("\n\tManifest Versions are different, waiting for user to update Manifest Version\n");
+			return;
+		}
+
+	//check if write was successful
+		if( receiveSig( sockfd ) == false){
+			printf("\n\tError on Client side committing\n");
+		}else{
+			printf("\n\tCommit created successfully! Recieving Commit over from Client...\n");
+			char* commit_file =  recieveTarFile( sockfd, proj_name );
+			printf("\tSuccessfully retrieved .Commit file!\n");
+			free(commit_file);
+		}
+
+		return;
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -126,7 +137,6 @@ void commitServer( int sockfd, char* proj_name ){
 //[3.5] PUSH//////////////////////////////////////////////////////////////
 void pushServer(  int sockfd, char* proj_name  ){
 	printf("\nEntered command: push\n");
-
 	/*ERROR CHECK*/
 		//check if project name doesn't exist on Server
 		if( sendSig(sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false ) pRETURN_ERRORvoid("project doesn't exist on server");
@@ -250,28 +260,37 @@ void pushServer(  int sockfd, char* proj_name  ){
 
 //[3.6] CREATE//////////////////////////////////////////////////////////////
 void createServer(  int sockfd, char* proj_name ){
-	printf("\nEntered command: create\n");
-	/*error check*/
+	printf("\n\tEntered command: create\n");
+	/*ERROR check*/
 	if( typeOfFile(proj_name)==isDIR ){ sendErrorSocket(sockfd); pRETURN_ERRORvoid("project already exists on server"); }
-
 
 	/*make directory*/
 	if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ pRETURN_ERRORvoid("mkdir()"); }
 
-
 	/*make .Manifest File*/
 	char* manifest_path = combinedPath(proj_name, ".Manifest");
-	int manifest_fd = openFileW( manifest_path );
-		if( manifest_fd < 0){ free(manifest_path); pRETURN_ERRORvoid("open"); }
-	WRITE_AND_CHECKv(manifest_fd, "1\n", 2);
-	WRITE_AND_CHECKv(manifest_fd, "1\n", 2);
+	FILE* manifest_fd = fopen( manifest_path, "w" );
+		if( manifest_fd == NULL ){ free(manifest_path); pRETURN_ERRORvoid("open"); }
+	//write to file project v_num and manifest v_num
+	fprintf(manifest_fd, "1\n1\n");
+	fclose(manifest_fd);
+
+	/*make .History File*/
+	char* history_path = combinedPath(proj_name, ".History");
+	FILE* history_fd = fopen( history_path, "w" );
+		if( history_fd == NULL ){ free(manifest_path); pRETURN_ERRORvoid("open"); }
+	free(history_path);
+	fclose(history_fd);
 
 	/*make backup directory*/
 	char* backup_proj_dir = concatString(proj_name, ".bak");
-	if( mkdir( backup_proj_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ free(manifest_path); pRETURN_ERRORvoid("mkdir()"); }
+	if( mkdir( backup_proj_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){
+		free(backup_proj_dir); free(manifest_path);
+		pRETURN_ERRORvoid("mkdir()");
+	}
 
 	/*send Manifest file to client*/
-	if( sendTarFile( sockfd, manifest_path, backup_proj_dir) == false){ free(backup_proj_dir); free(manifest_path); pRETURN_ERRORvoid("sending .Manifest file to client"); }
+	if( sendTarFile( sockfd, manifest_path, backup_proj_dir ) == false ){ free(backup_proj_dir); free(manifest_path); pRETURN_ERRORvoid("sending .Manifest file to client"); }
 
 	/*Add project to global linked list*/
 	addProjectNode( proj_name );
@@ -281,16 +300,24 @@ void createServer(  int sockfd, char* proj_name ){
 
 	free(backup_proj_dir);
 	free(manifest_path);
-	close(manifest_fd);
-
 	return;
 }
 ////////////////////////////////////////////////////////////////////////
 
 
-//DESTROY//////////////////////////////////////////////////////////////////////
+//[3.7] DESTROY//////////////////////////////////////////////////////////////////////
 void destroyServer(int sockfd, char* proj_name ){
-	if( removeDir( proj_name ) == false){ pRETURN_ERRORvoid("remove"); } //TODO : error check and signals
+	/*ERROR CHECK*/
+		//check if project exists on Server
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
+
+	/*Remove Project and Delete*/
+		if( sendSig( sockfd, ( removeDir( proj_name ) == false ) ) == false ){
+			pRETURN_ERRORvoid("failed to remove");
+		}else{
+			printf("Successfully deleted project on server!");
+		}
+
 	return;
 
 }
@@ -306,8 +333,8 @@ void currentversionServer(  int sockfd, char* proj_name  ){
 		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
 		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERRORvoid(".Manifest file doesn't exist in project on server"); }
 
-
 	/*SEND manifest file to client*/
+		printf("\tSending over information to Client...\n");
 			char* manifest_str = readFile( manifest_path);
 				free(manifest_path);
 				if(manifest_str==NULL){ pRETURN_ERRORvoid("reading manifest"); }
@@ -320,27 +347,38 @@ void currentversionServer(  int sockfd, char* proj_name  ){
 ////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////////////////////////////////
-void historyServer( int sockfd, char* proj_name  ){ //TODO Client
-
+//[3.11] HISTORY//////////////////////////////////////////////////////////////
+void historyServer( int sockfd, char* proj_name  ){
 	/*ERROR CHECK*/
 		//check if project exists on Server
 		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
+		//check if history doesn't on Server
+		char* history_path = combinedPath( proj_name, ".History"); //get path of manifest
+		if( sendSig(sockfd, ( typeOfFile(history_path) != isREG ) ) == false ){ free(history_path);  pRETURN_ERRORvoid(".History file doesn't exist in project on server"); }
 
+	//send over History file to client
+	/*SEND manifest file to client*/
+		printf("\tSending over History file to Client...\n");
+		char* backup_proj = concatString( proj_name, ".bak" );
+		if( sendTarFile( sockfd, history_path, backup_proj) == false){ PRINT_ERROR("sending History File"); }
+		printf("\tSent History file to Client succesfully!\n");
+
+	free(history_path);
+	free( backup_proj );
 	return;
 }
 ////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////////////////////////////////
+//[3.12] ROLLBACK//////////////////////////////////////////////////////////////
 void rollbackServer(  int sockfd, char* proj_name, char* version_num){ //TODO Client
-
 	/*ERROR CHECK*/
 		//check if project exists on Server
 		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
-		//wait from client if update file is empty or doesn't exist
+		//wait from client if version number is invalid
 		if( receiveSig(sockfd) == false) pRETURN_ERRORvoid("Version Number is invalid!");
 
+		//TODO
 
 	return;
 }
@@ -353,7 +391,6 @@ void rollbackServer(  int sockfd, char* proj_name, char* version_num){ //TODO Cl
 void* connect_client( void* curr_clientthread ){
 	ClientThread* args = (ClientThread*)curr_clientthread;
 	int sockfd = args->curr_socket;
-  
 	printf("%d] Success on connection!\n", sockfd);
 
 	/*Recieve arguments from Client*/

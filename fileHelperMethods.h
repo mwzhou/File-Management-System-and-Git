@@ -45,7 +45,6 @@
 
 	/*File Manipulation Methods*/
 
-	bool createCommit(char* manifest_path, FILE* commitFile, char* proj_name);
 	int extractLine(char* fpath, char* target);
 	int sizeOfFile(char* file_name);
 	char* readFile(char* file_name);
@@ -54,6 +53,7 @@
 	bool moveFile( char* file_path , char* dir_to_store);
 	bool removeDir( char* dir );
 	bool copyDir(char* proj_name, char* copyPath);
+
 
 	/*String Manipulation Methods*/
 	char* substr(char* s, size_t start_ind, size_t length);

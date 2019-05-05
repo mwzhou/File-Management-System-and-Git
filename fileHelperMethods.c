@@ -5,14 +5,14 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <errno.h>
-#include <math.h>
+#include<errno.h>
+#include<math.h>
 
 #include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/types.h>
+#include<sys/types.h>
 #include <openssl/sha.h>
 #include"fileHelperMethods.h"
 
@@ -22,26 +22,25 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 
 
 //FILE methods/////////////////////////////////////////////////////////////////////
-
 /**
 Goes through project sent and replaces hash in .Manifest, taking in Project Name and File Name. returns true only if file hash codes have changed
 **/
-bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name){
+bool createCommit(char* manifest_path, FILE* commitFile, char* proj_name){
 
 	//opening manifest file and creating file that will overwrite manifest file
 	FILE * fPtr;
-   	FILE * fTemp;
+   	//FILE * fTemp;
 	fPtr = fopen(manifest_path,"r");
 	if (fPtr == NULL) pEXIT_ERROR("fopen");
 	
-	char* temp_path = combinedPath(proj_name,"replace.tmp");
-	fTemp = fopen(temp_path,"w");
-	if (fTemp == NULL) pEXIT_ERROR("fopen");
+	//char* temp_path = combinedPath(proj_name,"replace.tmp");
+	//fTemp = fopen(temp_path,"w");
+	//if (fTemp == NULL) pEXIT_ERROR("fopen");
 
 	//setting initial variables	
 	int lineSize = 1024;
 	char buffer[lineSize];
-	char temp[lineSize];
+	//char temp[lineSize];
 	//going through file line by line
 	while((fgets(buffer, lineSize, fPtr) )!=NULL){
 
@@ -71,7 +70,7 @@ bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name){
 		//increment version number
 		vNum++;
 
-		//comparing old and new Hash's
+		//getting old and new Hash's
 		char* og_hash = substr(buffer, index, SHA256_DIGEST_LENGTH*2+1);
 		char* new_hash = generateHash(file_path);
 
@@ -92,11 +91,11 @@ bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name){
 		}
 
 		//entering changed hash into future replacement manifest file
-		strcpy(temp, buffer);
+		/*strcpy(temp, buffer);
 		buffer[index] = '\0';
 		strcat(buffer, new_hash);
 		strcat(buffer, temp+index+strlen(new_hash));
-		fputs(buffer, fTemp);
+		fputs(buffer, fTemp);*/
 
 		//freeing
 		free(new_hash);
@@ -105,12 +104,12 @@ bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name){
 	}
 	
 	//replacing mnifest file with updated manifest file
-	remove(manifest_path);
-	rename(temp_path,manifest_path);
+	/*remove(manifest_path);
+	rename(temp_path,manifest_path);*/
 	
 	//Fclosing
 	fclose(fPtr);
-   	fclose(fTemp);
+   	//fclose(fTemp);
 
 	return true;
 }
@@ -269,6 +268,24 @@ bool removeDir( char* dir ){
 
 		free(sys_cmd);
 		return true;
+}
+
+/**
+Copies directory or file to other location
+**/
+bool copyDir(char* proj_name, char* copyPath){
+	int cmd_len = strlen("cp -r ")+strlen(proj_name) + strlen(" ") + strlen(copyPath) + 2;
+	char* sys_cmd = (char*)malloc(cmd_len);
+		//cpy info
+		strcpy( sys_cmd, "cp -r ");
+		strcat( sys_cmd, proj_name);
+		strcat( sys_cmd, " ");
+		strcat( sys_cmd, copyPath);
+	//copy Project to backUp directory with version number
+	system(sys_cmd);
+	if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+	free(sys_cmd);
+	return true;
 }
 
 

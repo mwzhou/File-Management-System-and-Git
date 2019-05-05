@@ -18,94 +18,31 @@
 
 
 //GLOBALS////////////////////////////////////////////////////////////////
+#define BACKLOG 50
 int overall_socket;
 
-ClientThread clients[20];
-int num_clients = 0;
+ClientThread clients[BACKLOG];
+pthread_mutex_t clients_lock = PTHREAD_MUTEX_INITIALIZER;
 
 ProjectNode *head = NULL;
-
-//////Linked List Methods////////////////////////////////////////////////////////////////
-
-
-
-//initializes head and adds node to start of linked list
-bool addNode(char* proj_name){
-	ProjectNode *temp = malloc(sizeof(ProjectNode));
-	temp->project_name = proj_name;
-	//initialize mutex lock 
-	int ret = pthread_mutex_init(&temp->lock, NULL);
-	if(ret<0) {pRETURN_ERROR("Mutex Initialize", NULL); }
-
-	if(head==NULL){
-		head = temp;
-		temp->next = NULL;
-	}
-	else{
-		temp->next = head;
-		head = temp;
-	}
-	return true;
-}
-
-
-//Deletes a node, returs true if found and deleted, returns false if not found
-bool delNode(char* proj_name){
-	ProjectNode* prev = NULL;
-	ProjectNode *temp = head;
-	while((temp!=NULL) && (strcmp(temp->project_name,proj_name)!=0)){
-		prev = temp;
-		temp = temp->next;
-	}
-	if(prev==NULL && (strcmp(temp->project_name,proj_name)==0)){
-		head = temp->next;
-		return true;
-	}
-	else if(temp->next==NULL && (strcmp(temp->project_name,proj_name)==0)){
-		prev->next  = NULL;
-		return true;
-	}
-	else if((strcmp(temp->project_name,proj_name)==0)){
-		prev->next = temp->next;
-		return true;
-	}
-	return false;
-}
-
-
-//Returns node of project when given project name to find
-ProjectNode* search(char* proj_name){
-	ProjectNode *temp = head;
-	while(temp!=NULL){
-		if(strcmp(temp->project_name,proj_name)==0)
-			return temp;;
-	}
-	return NULL;
-}
-
-
-
-
 //[3.1] CHECKOUT////////////////////////////////////////////////////////////////////////
 
-void* checkoutServer( int sockfd, char* proj_name ){
-	printf("\n\tEntered command: checkout\n");
+void checkoutServer( int sockfd, char* proj_name ){
+	printf("\nEntered command: checkout\n");
 
 	/*ERROR CHECK*/
 		//check if proj exists on Server - send message to client
-		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on Server",NULL);
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on Server");
 		//waiting for Client to see if project exists
-		if( receiveSig( sockfd ) == false ) pRETURN_ERROR("Project already exists on Client",NULL);
-
+		if( receiveSig( sockfd ) == false ) pRETURN_ERRORvoid("Project already exists on Client");
 
 
 	/**SEND project over to client**/
 		//get backup folder_dir
 		char* bakup_proj_path = concatString( proj_name, ".bak" );
-		if ( sendTarFile(sockfd, proj_name, bakup_proj_path) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
-			free(bakup_proj_path);
 
-	return 0;
+		if ( sendTarFile(sockfd, proj_name, bakup_proj_path) == false){ pRETURN_ERRORvoid("error sending .Manifest file"); }
+			free(bakup_proj_path);
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -116,254 +53,243 @@ void* checkoutServer( int sockfd, char* proj_name ){
 /*
 update
 */
-void* updateServer(  int sockfd, char* proj_name  ){
-	printf("\n\tEntered command: update\n");
+void updateServer(  int sockfd, char* proj_name  ){
+	printf("\nEntered command: update\n");
 
 	/*ERROR CHECK*/
 		//check if project name doesn't exist on Server
-		if( sendSig(sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false ) pRETURN_ERROR("project doesn't exist on server",NULL);
+		if( sendSig(sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false ) pRETURN_ERRORvoid("project doesn't exist on server");
 		//check if manifest doesn't on Server
 		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
-		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERROR(".Manifest file doesn't exist in project on server",NULL); }
+		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERRORvoid(".Manifest file doesn't exist in project on server"); }
+
 
 
 	/*SEND manifest file to client*/
 		char* bakup_proj = concatString( proj_name, ".bak" );
 		//send
-		if ( sendTarFile(sockfd, manifest_path, bakup_proj) == false){ pRETURN_ERROR("error sending .Manifest file", NULL); }
-		free(manifest_path);
-		free(bakup_proj);
-
-
-		//TODO: operations
-
-
-
-	return 0;
+		if ( sendTarFile(sockfd, manifest_path, bakup_proj) == false){ free(manifest_path); free(bakup_proj); pRETURN_ERRORvoid("error sending .Manifest file"); }
+			free(manifest_path);
+			free(bakup_proj);
 }
 ////////////////////////////////////////////////////////////////////////
 
 
 //[3.3] UPGRADE//////////////////////////////////////////////////////////////
-void* upgradeServer(  int sockfd, char* proj_name  ){
-	printf("\n\tEntered command: upgrade\n");
+void upgradeServer(  int sockfd, char* proj_name  ){
+	printf("\nEntered command: upgrade\n");
 
 	/*ERROR CHECK*/
-		//check if project exists on Server
-		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
+		//check if project doesn't exist on Server
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
 		//check if .Update exists on Client
-		if( receiveSig(sockfd) == false) pRETURN_ERROR(".Update doesn't exist on Client",NULL);
-
-	//printf("Project name: %s\n",proj_name);
-	char* file = NULL;
-
-	do{
-		//freeing old file and recieving next file name
-		if(file!=NULL) free(file);
-		file = recieveStringSocket(sockfd);
-		if(file == NULL) {pRETURN_ERROR("recieveStringSocket failed",NULL);}
+		if( receiveSig(sockfd) == false){  printf("\tPlease update first (no update file on client)\n"); return;  }
+		//check if .Update file is emptry
+		if( receiveSig(sockfd) == false){ printf("\tProject is up to date\n"); return; }
 
 
-		if(strcmp(file, "Terminated")!=0){
-
-			char* file_to_send = combinedPath(proj_name,file);
-			printf("recieve: %s\n",file_to_send);
-
-			char* bakup_proj = concatString( proj_name, ".bak" );
-			printf("locationg to store: %s\n",bakup_proj);
-			
-			if (sendTarFile( sockfd, file_to_send, bakup_proj) == false) {pRETURN_ERROR("sendTarFile failed",NULL);}
-	
-			//freeing
-			free(bakup_proj);
-			free(file_to_send);
-		}
-		
-		//freeing
-		
-	}while(strcmp(file, "Terminated")!=0);
-
-	free(file);
-
-	return 0;
+	/*OPERATIONS*/
+	/**SEND project over to client**/
+		char* backup_proj_path = concatString( proj_name, ".bak" ); //get backup folder_dir
+		if ( sendTarFile(sockfd, proj_name, backup_proj_path) == false ){ pRETURN_ERRORvoid("error sending .Manifest file"); }
+   	free(backup_proj_path);
 }
 ////////////////////////////////////////////////////////////////////////
 
 
 //[3.4] COMMIT//////////////////////////////////////////////////////////////
-void* commitServer( int sockfd, char* proj_name ){
+void commitServer( int sockfd, char* proj_name ){
 	printf("\n\tEntered command: commit\n");
 
 	/*ERROR CHECK*/
 		//check if project exists on Server
-		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
 		//wait from client if update file is empty or doesn't exist
-		if( receiveSig(sockfd) == false) pRETURN_ERROR(".Update file is nonempty on Client!",NULL);
+		if( receiveSig(sockfd) == false) pRETURN_ERRORvoid(".Update file is nonempty on Client!");
 
 	//sending project .Manifest to client
 	char* bakup_proj = concatString( proj_name, ".bak" );
 	char* manifest_path = combinedPath(proj_name,".Manifest");
-	if (sendTarFile( sockfd, manifest_path, bakup_proj) == false) {pRETURN_ERROR("sendTarFile failed",NULL);}
+	if (sendTarFile( sockfd, manifest_path, bakup_proj) == false) {pRETURN_ERRORvoid("sendTarFile failed");}
 
 	//freeing
 	free(bakup_proj);
 	free(manifest_path);
 
-	return 0;
+	return ;
 }
 ////////////////////////////////////////////////////////////////////////
 
 
 
 //[3.5] PUSH//////////////////////////////////////////////////////////////
-void* pushServer(  int sockfd, char* proj_name  ){
+void pushServer(  int sockfd, char* proj_name  ){
+	printf("\nEntered command: push\n");
+
+	/*ERROR CHECK*/
+		//check if project name doesn't exist on Server
+		if( sendSig(sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false ) pRETURN_ERRORvoid("project doesn't exist on server");
+		//check if manifest doesn't on Server
+		char* commit_server_path = combinedPath( proj_name, ".Commit"); //get path of manifest
+		if( sendSig(sockfd, ( typeOfFile(commit_server_path) != isREG ) ) == false ){ free(commit_server_path);  pRETURN_ERRORvoid(".Commit file doesn't exist in project on server"); }
 
 
-	return 0;
+	//recieving files send from client	
+	char* bakup_proj = concatString( proj_name, ".bak" );
+	char* dir_of_files = recieveTarFile( sockfd, bakup_proj );
+		if(dir_of_files == NULL){ pRETURN_ERRORvoid("recieveTarFile failed"); }
+
+	//get client commit file:
+	char* commit_client_path = combinedPath(dir_of_files,".Commit");
+
+	//TODO compare server commit file to client comit file
+
+	//Get server's current project version to copy and rename project.
+	char* manifest_path = combinedPath(proj_name, ".Manifest");
+	FILE* mP = fopen(manifest_path,"r");
+	int count = 0;
+	char* og_pNum;
+	int lineSize = 1024;
+	char buffer[lineSize];
+
+	//get project Number
+	while(count<2){
+		fgets(buffer, lineSize, mP);
+		count++;
+		if(count==2){
+			og_pNum = buffer;
+		}
+	}
+
+	//go back to beginning of file
+	fclose(mP);
+	char* versionIs = concatString("V",og_pNum);
+	char* bak_path = concatString(proj_name,".bak");
+	char* copyPath = combinedPath(bak_path,versionIs);
+	
+	//copy V1 into directory
+	bool s = copyDir(proj_name, copyPath);
+	if(s==false){pRETURN_ERRORvoid("copying failed");}
+
+	//tar version file and delete normal file
+	printf("%s\t%s\n", copyPath, bak_path);
+	makeTar(copyPath, bak_path);
+	//bool o = removeDir(copyPath);
+	//if(o==false){pRETURN_ERRORvoid("Removing directory failed");}
+
+	//TODO UMAD
+
+
+	//Removing and Freeing
+	//bool d = removeDir(dir_of_files);
+	//if(d==false){pRETURN_ERRORvoid("Removing directory failed");}
+	free(manifest_path);
+	free(commit_client_path);
+	free(commit_server_path);
+	free(versionIs);
+	free(bak_path);
+	//free(sys_cmd);
+	free(copyPath);
+	free(bakup_proj);
 }
 ////////////////////////////////////////////////////////////////////////
 
 
 //[3.6] CREATE//////////////////////////////////////////////////////////////
-void* createServer(  int sockfd, char* proj_name ){
-	printf("\n\tEntered command: create\n");
+void createServer(  int sockfd, char* proj_name ){
+	printf("\nEntered command: create\n");
 	/*error check*/
-	if( typeOfFile(proj_name)==isDIR ){ sendErrorSocket(sockfd); pRETURN_ERROR("project already exists on server",NULL); }
+	if( typeOfFile(proj_name)==isDIR ){ sendErrorSocket(sockfd); pRETURN_ERRORvoid("project already exists on server"); }
 
 
 	/*make directory*/
-	if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ pRETURN_ERROR("mkdir()", NULL); }
+	if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ pRETURN_ERRORvoid("mkdir()"); }
+
 
 	/*make .Manifest File*/
 	char* manifest_path = combinedPath(proj_name, ".Manifest");
 	int manifest_fd = openFileW( manifest_path );
-		if( manifest_fd < 0){ free(manifest_path); pRETURN_ERROR("open", NULL); }
-	WRITE_AND_CHECKn(manifest_fd, "1\n", 2);
+		if( manifest_fd < 0){ free(manifest_path); pRETURN_ERRORvoid("open"); }
+	WRITE_AND_CHECKv(manifest_fd, "1\n", 2);
+	WRITE_AND_CHECKv(manifest_fd, "1\n", 2);
 
 	/*make backup directory*/
 	char* backup_proj_dir = concatString(proj_name, ".bak");
-	if( mkdir( backup_proj_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ free(manifest_path); pRETURN_ERROR("mkdir()", NULL); }
+	if( mkdir( backup_proj_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ free(manifest_path); pRETURN_ERRORvoid("mkdir()"); }
 
 	/*send Manifest file to client*/
-	if( sendTarFile( sockfd, manifest_path, backup_proj_dir) == false){ free(backup_proj_dir); free(manifest_path); pRETURN_ERROR("sending .Manifest file to client", NULL); }
+	if( sendTarFile( sockfd, manifest_path, backup_proj_dir) == false){ free(backup_proj_dir); free(manifest_path); pRETURN_ERRORvoid("sending .Manifest file to client"); }
 
-	//TODO: MAKE LINKED LIST
+	/*Add project to global linked list*/
+	addProjectNode( proj_name );
 
 	//free and return
-	printf("\n\tSuccessfully created project: %s on Server side!\n", proj_name);
+	printf("\nSuccessfully created project: %s on Server side!\n", proj_name);
+
 	free(backup_proj_dir);
 	free(manifest_path);
 	close(manifest_fd);
 
-	return 0;
+	return;
 }
 ////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////
 
-void* destroyServer(int sockfd, char* proj_name ){
-
-	//recursively remove all files and directories under project
-	destroyServerRec(sockfd,proj_name );
-
-	//sending success message
-	sendSig(sockfd, true);
-
-	return 0;
+//DESTROY//////////////////////////////////////////////////////////////////////
+void destroyServer(int sockfd, char* proj_name ){
+	if( removeDir( proj_name ) == false){ pRETURN_ERRORvoid("remove"); } //TODO : error check and signals
+	return;
 
 }
+////////////////////////////////////////////////////////////////////////
 
-void* destroyServerRec(  int sockfd, char* proj_name ){
 
-	//node to lock
-	//ProjectNode* lock_Node = search(proj_name);
-	//TODO lock repository, expire pending commits
+//CURRVERSION//////////////////////////////////////////////////////////////////////
+void currentversionServer(  int sockfd, char* proj_name  ){
+	/*ERROR CHECK*/
+		//check if project exists on Server
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
+		//check if manifest doesn't on Server
+		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
+		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERRORvoid(".Manifest file doesn't exist in project on server"); }
 
-	//Pointer for directory
-	struct dirent *de;
 
-	if( typeOfFile(proj_name)!=isDIR ){pRETURN_ERROR(("Project does not exist"), NULL); }
+	/*SEND manifest file to client*/
+			char* manifest_str = readFile( manifest_path);
+				free(manifest_path);
+				if(manifest_str==NULL){ pRETURN_ERRORvoid("reading manifest"); }
+			//send manifest_str
+			 if( sendStringSocket( sockfd, manifest_str) == false){ pRETURN_ERRORvoid("sending manifest string"); }
 
-	//Opening the directory of path given
-	DIR *dr = opendir(proj_name);
-		if(!dr) sendSig(sockfd, false);
+	free(manifest_str);
 
-	while((de = readdir(dr)) !=NULL){
-		if(strcmp(de->d_name,".")==0 || strcmp(de->d_name,"..")==0){ continue; }
-
-		//Finding name of file and cending path back into method incase of being a directory
-		char* new_path = combinedPath(proj_name, de->d_name);
-		int np_type = typeOfFile(new_path);
-
-		if( np_type  == isDIR ){
-			//if file is directory, recurse to enter
-			destroyServerRec(sockfd, new_path);
-		}
-		else{
-			unlink(new_path);
-		}
-
-		//freeing		
-		free(new_path);
-	}
-
-	//closing, and returning
-	closedir(dr);
-	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////
-
-void* addServer(  int sockfd, char* proj_name, char* file_name ){
-
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-
-void* removeServer( int sockfd, char* proj_name, char* file_name  ){
-
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-
-void* currentversionServer(  int sockfd, char* proj_name ){
-
-	return 0;
-}
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-void* historyServer( int sockfd, char* proj_name  ){
+void historyServer( int sockfd, char* proj_name  ){ //TODO Client
 
 	/*ERROR CHECK*/
 		//check if project exists on Server
-		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
 
-	return 0;
+	return;
 }
 ////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////
-void* rollbackServer(  int sockfd, char* proj_name, char* version_num){
+void rollbackServer(  int sockfd, char* proj_name, char* version_num){ //TODO Client
 
 	/*ERROR CHECK*/
 		//check if project exists on Server
-		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
 		//wait from client if update file is empty or doesn't exist
-		if( receiveSig(sockfd) == false) pRETURN_ERROR("Version Number is invalid!",NULL);
+		if( receiveSig(sockfd) == false) pRETURN_ERRORvoid("Version Number is invalid!");
 
 
-	return 0;
+	return;
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -371,10 +297,10 @@ void* rollbackServer(  int sockfd, char* proj_name, char* version_num){
 
 //CONNECT//////////////////////////////////////////////////////////////////////
 //Handles accepting information sent in by the client
-void* connect_client(void* curr_socket ){
-
-	//ClientThread* args = (ClientThread*)curr_clientthread;
-	int sockfd = *(int*)curr_socket;
+void* connect_client( void* curr_clientthread ){
+	ClientThread* args = (ClientThread*)curr_clientthread;
+	int sockfd = args->curr_socket;
+  
 	printf("%d] Success on connection!\n", sockfd);
 
 	/*Recieve arguments from Client*/
@@ -390,7 +316,7 @@ void* connect_client(void* curr_socket ){
 		if(s3==NULL) printf("\tRecieved from client - command:%s  proj_name:%s \n", command, proj_name);
 		else printf("\tRecieved from client - command:%s  proj_name:%s  version_num:%s \n", command, proj_name, s3);
 
-	free( arguments );
+		free( arguments );
 
 
 
@@ -416,12 +342,6 @@ void* connect_client(void* curr_socket ){
 	else if(strcmp(command,"destroy")==0)
 		destroyServer(sockfd, proj_name);
 
-	else if(strcmp(command,"add")==0)
-		addServer(sockfd, proj_name, s3);
-
-	else if(strcmp(command,"remove")==0)
-		removeServer(sockfd, proj_name, s3);
-
 	else if(strcmp(command,"currentversion")==0)
 		currentversionServer(sockfd, proj_name);
 
@@ -432,34 +352,39 @@ void* connect_client(void* curr_socket ){
 		rollbackServer(sockfd, proj_name, s3);
 
 	else
-		printf("\tError on client side\n");
 
-	//TODO delete(use as reference for methods)
-	//send to socket
-	//send(socket , "Message recieved from server!" , strlen("Message recieved from server!") , 0 );
+		printf("\tError on client side argument\n");
 
-	//freeing and exiting
-	/*
-	shutdown(overall_socket,0);
-	shutdown(overall_socket,1);
-	shutdown(overall_socket,2);
-	*/
+	/*EXITING CLIENT*/
+	shutdown(sockfd , SHUT_RDWR );
+	printf("[closing client sock: %d]\n", sockfd);
 
-	//close
+	//aquiring mutex
+	pthread_mutex_lock( &clients_lock );
 
 	if(close(sockfd) < 0) pRETURN_ERROR("Error on Close", NULL);
+	args->done = true;
 
-	//pthread_exit(NULL);
+	//releasing mutex
+	pthread_mutex_unlock( &clients_lock );
 
-	return 0;
+	pthread_exit(NULL);
+
 }
 ////////////////////////////////////////////////////////////////////////
 
 
 
-int main(int argc, char * argv[]){ //TODO: print out error message?
+int main(int argc, char * argv[]){
 	//Check for arguments
 		if(argc!=2) pRETURN_ERROR("Enter an argument containing the port number\n",-1);
+
+	/*Initialize Clients Global Array*/
+		int i;
+		for( i = 0; i<BACKLOG ; i++ ){
+			ClientThread curr = {-1, -1, true};
+			clients[i] = curr;
+		}
 
 	//getting port
 		int port = (int)atol(argv[1]);
@@ -472,9 +397,6 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 		if(overall_socket == 0) pRETURN_ERROR("Error on socket creation",-1);
 	//reuse socket
 		if (setsockopt(overall_socket, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0)  pRETURN_ERROR("setsockopt(SO_REUSEADDR) failed",-1);
-
-	//initialize overall_socket
-
 
 	//intitializes sizeof(address) zero-value bytes of address
 	bzero(&address,sizeof(address));
@@ -490,7 +412,6 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 		if(status < 0) pRETURN_ERROR("Error on Bind",-1);
 
 	//LISTENto client
-
 	status = listen(overall_socket, 20);
 		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
 
@@ -498,34 +419,23 @@ int main(int argc, char * argv[]){ //TODO: print out error message?
 	//ACCEPT connecting and accepting message for client
 	int curr_socket;
 	while( (curr_socket= accept(overall_socket, (struct sockaddr*) &address, (socklen_t*)&addrlen)) > 0 ){
-	 //add client thread to global
-	 	ClientThread curr_client = {-1, curr_socket};
-		clients[num_clients] =  curr_client; //TODO: change -1 to pthread
 
-		num_clients++; //TODO: add mutex
-		//connect to client-
-		connect_client( (void*)&curr_socket );
+		//find first open socket
+		for(i=0; i<BACKLOG; i++){
+			if( clients[i].done == true){ //if found empty
+				clients[i].curr_socket = curr_socket;
+				clients[i].done = false;
+				break;
+			}
+		}
+
+		//connects to client through thread!
+		if( pthread_create(&clients[i].client , NULL, connect_client, (void*)(&clients[i]) ) < 0 ) pRETURN_ERROR("Thread not created",-1);
 	}
 
 	//if accept failed
 	if(curr_socket<0){ pRETURN_ERROR("Connection to client failed",-1); }
 
-/*TODO clients SHOULD BE INSIDE LOOP
-		//create new thread
-		pthread_t id;
-		status = pthread_create(&id, NULL, connect_client, (void*) &tempSocket);
-			if(status<0) pRETURN_ERROR("Thread not created",-1);
-		//insert id into linked list
-		insert(id);
-	}
-*/
-
-/*
-	//SHUT DOWN AND RETURN
-	shutdown(overall_socket,0);
-	shutdown(overall_socket,1);
-	shutdown(overall_socket,2);
-*/
 	if(close(overall_socket) < 0) pRETURN_ERROR("Error on Close",-1);
-	return 0;
+	return 0;	//initialize overall_socket
 }

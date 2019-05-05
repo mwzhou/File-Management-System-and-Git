@@ -1,5 +1,6 @@
 #ifndef FILE_HELP
 #define FILE_HELP
+#include "structures.h"
 
 //ERROR MACROS
 	#define PRINT_ERROR(txt) ({\
@@ -26,13 +27,13 @@
 	#define READ_AND_CHECKe(file, buf, nbytes) do{ if( read(file, buf , nbytes)<0 ) pEXIT_ERROR("read()"); }while(0)
 	#define READ_AND_CHECKn(file, buf, nbytes) do{ if( read(file, buf , nbytes)<0 ) pRETURN_ERROR("read()", NULL); }while(0)
 
-	#define REMOVE_AND_CHECK(file_name) do{ if(remove(file_name) == 0) fprintf( stderr, "removed file:%s\n",file_name); else fprintf( stderr, "couldn't remove file:%s",file_name);  }while(0) //removes file and prints if successful
+
+	#define REMOVE_AND_CHECK(file_name) do{ if(remove(file_name) == 0) fprintf( stderr, "\n\tremoved file:%s\n",file_name); else fprintf( stderr, "couldn't remove file:%s",file_name);  }while(0) //removes file and prints if successful
 	#define TESTP printf("\ntest: %d\n", __LINE__)
 
 
 	#define sendErrorSocket(sockfd) sendNumSocket(sockfd, -1)
 	#define SUCCESS_SEND 1766
-
 
 
 //ENUMS
@@ -43,18 +44,23 @@
 //METHOD SIGNATURES
 
 	/*File Manipulation Methods*/
-	bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name);
+
+	bool createCommit(char* manifest_path, FILE* commitFile, char* proj_name);
 	int extractLine(char* fpath, char* target);
 	int sizeOfFile(char* file_name);
 	char* readFile(char* file_name);
 	int openFileW(char* file_name);
 	FileType typeOfFile(char* file_name);
+	bool moveFile( char* file_path , char* dir_to_store);
+	bool removeDir( char* dir );
+	bool copyDir(char* proj_name, char* copyPath);
 
 	/*String Manipulation Methods*/
 	char* substr(char* s, size_t start_ind, size_t length);
 	char* combinedPath(char* path_name, char* file_name);
 	char* concatString(char* s1, char* s2);
-	char* copyString( char* s1 );	
+	char* copyString( char* s1 );
+
 	int lengthBeforeLastOccChar( char* s, char c);
 
 	/*Socket Methods*/
@@ -75,6 +81,7 @@
 	char* unTar( char* tar_filepath );
 	char* makeTar(char* proj_name, char* path_File);
 
+	/*Manifest Methods*/
 	char* createManifest(char* proj_name);
 	bool writeToManifest(char* path, int  manifest_fd );
 	char* generateHash (char* file_name);

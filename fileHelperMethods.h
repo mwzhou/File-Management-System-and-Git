@@ -27,6 +27,7 @@
 	#define READ_AND_CHECKe(file, buf, nbytes) do{ if( read(file, buf , nbytes)<0 ) pEXIT_ERROR("read()"); }while(0)
 	#define READ_AND_CHECKn(file, buf, nbytes) do{ if( read(file, buf , nbytes)<0 ) pRETURN_ERROR("read()", NULL); }while(0)
 
+
 	#define REMOVE_AND_CHECK(file_name) do{ if(remove(file_name) == 0) fprintf( stderr, "\n\tremoved file:%s\n",file_name); else fprintf( stderr, "couldn't remove file:%s",file_name);  }while(0) //removes file and prints if successful
 	#define TESTP printf("\ntest: %d\n", __LINE__)
 
@@ -43,6 +44,8 @@
 //METHOD SIGNATURES
 
 	/*File Manipulation Methods*/
+
+	bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name);
 	int extractLine(char* fpath, char* target);
 	int sizeOfFile(char* file_name);
 	char* readFile(char* file_name);
@@ -56,6 +59,7 @@
 	char* combinedPath(char* path_name, char* file_name);
 	char* concatString(char* s1, char* s2);
 	char* copyString( char* s1 );
+
 	int lengthBeforeLastOccChar( char* s, char c);
 
 	/*Socket Methods*/
@@ -73,7 +77,6 @@
 	/*Tar Methods*/
 	bool sendTarFilest( int sockfd, char* file_path, char* dir_to_store, char* sock_type );
 	char* recieveTarFilest( int sockfd, char* dir_to_store , char* sock_type);
-
 	char* unTar( char* tar_filepath );
 	char* makeTar(char* proj_name, char* path_File);
 

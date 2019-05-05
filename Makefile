@@ -14,6 +14,6 @@ WTFserver:server.c server.h fileHelperMethods.o structures.o
 
 test: test.c fileHelperMethods.o structures.o #TODO delete!!!
 	gcc -lm -Wall -Werror -fsanitize=address -lssl -lcrypto  fileHelperMethods.o structures.o test.c -o test
-
+  
 clean:
 	rm -f  *.o WTF WTFserver test

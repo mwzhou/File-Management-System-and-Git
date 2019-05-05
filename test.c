@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include<errno.h>
+#include<math.h>
+
 
 #include <dirent.h>
 #include <unistd.h>

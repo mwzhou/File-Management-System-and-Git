@@ -74,6 +74,7 @@ void checkoutClient(char* proj_name){ //TODO
 		//check if file already exists on Client
 		if( sendSig( sockfd, ( typeOfFile(proj_name)== isDIR ) ) == false ) pEXIT_ERROR("project name already exists on Client side");
 
+
 	/*recieving project and untaring it in root*/
 		char* proj_tar = recieveTarFile( sockfd, "./");
 			if(proj_tar == NULL){ pEXIT_ERROR("error recieving directory"); }
@@ -246,10 +247,10 @@ bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head 
 		delManifestNode( &serverLL_head , sptr_file);
 	}
 	return true;
+
+
 }
-
-
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
 
 
 //[3.3] UPGRADE//////////////////////////////////////////////////////////////
@@ -364,12 +365,48 @@ void commitClient(char* proj_name){
 		char* update_path = combinedPath(proj_name, ".Update");
 		if( sendSig( sockfd, ( typeOfFile(update_path)!=isUNDEF && sizeOfFile(update_path)!=0 ) ) == false ){ free(update_path); pEXIT_ERROR(".Update file is nonempty on Client!"); } //TODO
 
-	/*OPERATIONS*/
+	//recieve tar file and get path of server's .Manifest
+	char* dir_to_store = concatString(proj_name,".bak");
+	char* serverManifest = recieveTarFile( sockfd, dir_to_store);
+	char* clientManifest = combinedPath(proj_name, ".Manifest");
+
+	char* commitFile = combinedPath(proj_name,".Commit");
+	
+	//opening Manifest Files and creating commit file
+	FILE* sF = fopen(serverManifest,"r");
+	 if (sF == NULL) pEXIT_ERROR("fopen");
+	FILE* cF = fopen(clientManifest,"a+");
+	 if (cF == NULL) pEXIT_ERROR("fopen");
+	FILE* newFile = fopen(commitFile, "w");
+	 if (newFile == NULL) pEXIT_ERROR("fopen");
+
+	int lineSize = 1024;
+	char bufferS[lineSize];
+	char bufferC[lineSize];
+	
+	//checking if version of manifest files are the same, return error
+	fgets(bufferS, lineSize, sF) ;
+	fgets(bufferC, lineSize, cF) ;
+	if(strcmp(bufferS,bufferC)!=0){pEXIT_ERROR("Update local project first!");}
+
+	//rehash every file in client .Manifest and adding to commit
+	replaceHash(clientManifest, newFile, proj_name);
+	
+	//delete server's .Manifest from client side
+	unlink(serverManifest);
+
+	//freeing and closing
+	fclose(sF);
+	fclose(cF);
+	fclose(newFile);
 	free(update_path);
+	free(dir_to_store);
+	free(serverManifest);
+	free(clientManifest);
+	free(commitFile);
 	return;
 }
 ////////////////////////////////////////////////////////////////////////////
-
 
 
 //[3.5] PUSH//////////////////////////////////////////////////////////////
@@ -521,6 +558,7 @@ bool removeFromManifest(char* file_path, char* proj_name){
 
 
 ////////////////////////////////////////////////////////////////////////////
+
 
 
 //[3.10] CURRENT VERSION/////////////////////////////////////////////////////
@@ -747,3 +785,6 @@ int main(int argc, char** argv){
 
 	return 0;
 }
+
+
+

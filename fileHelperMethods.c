@@ -598,6 +598,7 @@ char* createManifest(char* proj_name){
 
 	//write, if failed, remove file and return false
 	WRITE_AND_CHECKn( manifest_fd, "1\n" , 2);
+	WRITE_AND_CHECKn( manifest_fd, "1\n" , 2);
 
 	if( writeToManifest( proj_name, manifest_fd ) == false ){
 		REMOVE_AND_CHECK(manifest_path);
@@ -629,6 +630,7 @@ bool writeToManifest(char* path, int  manifest_fd ){
 	//reads through files and directories
 	while((de = readdir(dr)) !=NULL){
 		if(strcmp(de->d_name,".")==0 || strcmp(de->d_name,"..")==0){ continue; }
+		if(de->d_name[0]=='.'){ continue; }
 
 			//Finding name of file and cending path back into method incase of being a directory
 			char* new_path = combinedPath(path, de->d_name);
@@ -640,8 +642,7 @@ bool writeToManifest(char* path, int  manifest_fd ){
 
 			}else if( np_type == isREG ){
 						char* hash_code = generateHash(new_path);
-						//printf("path:%s\t%s\t\t%s\t%d\n", new_path, path, de->d_name, np_type);
-						//printf("%s\thash:%s\n", new_path, hash_code);
+							if( hash_code == NULL ){ pRETURN_ERROR("write hash", false); }
             //printf("np: %-5s\tp: %-5s\tn: %-5s\th: %-5s\n", new_path, path, de->d_name, hash_code);
 
 						//Write to manifest fd
@@ -652,10 +653,10 @@ bool writeToManifest(char* path, int  manifest_fd ){
 						WRITE_AND_CHECKb( manifest_fd, hash_code, strlen(hash_code));
 						WRITE_AND_CHECKb( manifest_fd, "\n", 1);
 
-						//free(hash_code);
+						free(hash_code);
 			}
 
-			//free(new_path);
+			free(new_path);
 		}
 
 	//close and return
@@ -671,6 +672,19 @@ char* generateHash (char* file_name){
 
 	//Find size offile in bytes
 	int file_size = sizeOfFile(file_name);
+		if( file_size<0 ){ return NULL;
+
+		//EMPTY
+		}else if( file_size==0 ){
+			char* output = (char*)calloc( (SHA256_DIGEST_LENGTH*2 + 1), 1 );
+			output[SHA256_DIGEST_LENGTH*2]='\0';
+			int i;
+			for(i=0; i<SHA256_DIGEST_LENGTH*2; i++){
+				output[i] = '0';
+			}
+
+			return output;
+		}
 
 	char* buffer = (char*) malloc (file_size);
 	int bytes;

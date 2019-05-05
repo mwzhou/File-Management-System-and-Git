@@ -444,6 +444,10 @@ void historyClient(char* proj_name){
 	printf("%d] Entered command: history\n", sockfd);
 	sendArgsToServer("history", proj_name, NULL);
 
+	/*ERROR CHECK*/
+		//waiting for signal if valid project on server
+		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
+
 	return;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -458,6 +462,9 @@ void rollbackClient(char* proj_name, char* version){
 	/*ERROR check*/
 	//check version number
 	int v_num = atoi(version);
+	//waiting for signal if valid project on server
+	if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
+	//check for invaluid version number
 	if(  sendSig( sockfd, (v_num <= 0) ) == false ) pEXIT_ERROR("invalid version number");
 
 

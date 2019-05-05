@@ -198,7 +198,7 @@ void* commitServer( int sockfd, char* proj_name ){
 		//check if project exists on Server
 		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
 		//wait from client if update file is empty or doesn't exist
-		if( receiveSig(sockfd) == false) pEXIT_ERROR(".Update file is nonempty on Client!");
+		if( receiveSig(sockfd) == false) pRETURN_ERROR(".Update file is nonempty on Client!",NULL);
 
 	//sending project .Manifest to client
 	char* bakup_proj = concatString( proj_name, ".bak" );
@@ -343,6 +343,11 @@ void* currentversionServer(  int sockfd, char* proj_name ){
 
 ////////////////////////////////////////////////////////////////////////
 void* historyServer( int sockfd, char* proj_name  ){
+
+	/*ERROR CHECK*/
+		//check if project exists on Server
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
+
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////
@@ -350,6 +355,13 @@ void* historyServer( int sockfd, char* proj_name  ){
 
 ////////////////////////////////////////////////////////////////////////
 void* rollbackServer(  int sockfd, char* proj_name, char* version_num){
+
+	/*ERROR CHECK*/
+		//check if project exists on Server
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
+		//wait from client if update file is empty or doesn't exist
+		if( receiveSig(sockfd) == false) pRETURN_ERROR("Version Number is invalid!",NULL);
+
 
 	return 0;
 }

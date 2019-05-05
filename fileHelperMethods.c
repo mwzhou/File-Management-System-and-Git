@@ -115,6 +115,7 @@ bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name){
 	return true;
 }
 
+
 /**
 goes through file line by line and returns the line_num w/ instance of target
 **/
@@ -127,7 +128,7 @@ int extractLine(char* fpath, char* target){
 
     fp = fopen( fpath , "r");
         if (fp == NULL) pEXIT_ERROR("fopen");
-    
+
     int line_num = 1;
     while ((read = getline(&line, &len, fp)) != -1) {
         if( strstr(line, target) != NULL){ free(line); return line_num; }
@@ -202,7 +203,6 @@ int openFileW(char* file_name){
 
 
 
-
 /**
 returns the type of the string given in
 @params: char* name - file_name or path_name
@@ -230,6 +230,46 @@ FileType typeOfFile(char* file_name){
 		return isUNDEF;
 }
 
+
+/**
+force moves file into the specified directory
+**/
+bool moveFile( char* file_path , char* dir_to_store){
+	//ex] mv -f r1.bak/r1/misc r1/
+
+	int cmd_len = strlen(dir_to_store) + strlen( file_path ) + strlen("mv -f ") + 2;
+	char* sys_cmd = (char*)malloc(cmd_len);
+		//cpy info
+		strcpy( sys_cmd, "mv -f ");
+		strcat( sys_cmd, file_path);
+		strcat( sys_cmd, " ");
+		strcat( sys_cmd, dir_to_store);
+
+	//run cmd
+	if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+
+	free(sys_cmd);
+	return true;
+}
+
+
+/**
+removes directory
+**/
+bool removeDir( char* dir ){
+	//ex] rm -r dir
+	int cmd_len = strlen(dir) + strlen("rm -r ") + 1;
+	char* sys_cmd = (char*)malloc(cmd_len);
+		//cpy info
+		strcpy( sys_cmd, "rm -r ");
+		strcat( sys_cmd, dir);
+
+		//run cmd
+		if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+
+		free(sys_cmd);
+		return true;
+}
 
 
 //STRING MANIPULATION methods/////////////////////////////////////////////////////////////////////
@@ -294,6 +334,7 @@ char* concatString(char* s1, char* s2){
 
 	return ret;
 }
+
 
 /**
 mallocs copy of string
@@ -383,15 +424,10 @@ sends string to socket
 **/
 bool sendStringSocketst( int sockfd, char* str, char* sock_type ){
 
-	//printf("enters\n");
-
 	//send num of bytes
-
 	int send_bytes = strlen(str);
 	if( write(sockfd, &send_bytes,  4) < 0 ) pRETURN_ERROR("write()", false);
 	printf("\tsent %d number of bytes to %s\n",send_bytes, sock_type);
-
-	//printf("bytes sent: %d\n", send_bytes);
 
 	//sending string
 	printf("\tsending string to %s\n", sock_type);
@@ -456,7 +492,6 @@ bool sendFileSocketst( int sockfd, char* file_name, char* sock_type ){
 
 
 /**
-
 recieves file for socket and writes it
 **/
 char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
@@ -498,7 +533,7 @@ char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
 //Tar Methods///////////////////////////////////////////////////////////////////////
 
 /**
-tar a file and send it to socket.Update
+tar a file and send it to socket
 **/
 bool sendTarFilest( int sockfd, char* file_path, char* dir_to_store, char* sock_type ){
 	char* tar_fp =  makeTar( file_path, dir_to_store );
@@ -655,9 +690,10 @@ char* createManifest(char* proj_name){
 	int manifest_fd = openFileW( manifest_path );
 		if( manifest_fd < 0){ pRETURN_ERROR("open", NULL); }
 
-	WRITE_AND_CHECKb( manifest_fd, "1\n", 2);
-
 	//write, if failed, remove file and return false
+	WRITE_AND_CHECKn( manifest_fd, "1\n" , 2);
+	WRITE_AND_CHECKn( manifest_fd, "1\n" , 2);
+
 	if( writeToManifest( proj_name, manifest_fd ) == false ){
 		REMOVE_AND_CHECK(manifest_path);
 		free(manifest_path);
@@ -665,7 +701,7 @@ char* createManifest(char* proj_name){
 		return NULL;
 	}
 
-	WRITE_AND_CHECKb( manifest_fd, "\n", 1);
+	WRITE_AND_CHECKn( manifest_fd, "\n" , 1);
 
 	close(manifest_fd);
 	return manifest_path;
@@ -688,20 +724,20 @@ bool writeToManifest(char* path, int  manifest_fd ){
 	//reads through files and directories
 	while((de = readdir(dr)) !=NULL){
 		if(strcmp(de->d_name,".")==0 || strcmp(de->d_name,"..")==0){ continue; }
+		if(de->d_name[0]=='.'){ continue; }
 
 			//Finding name of file and cending path back into method incase of being a directory
 			char* new_path = combinedPath(path, de->d_name);
 			int np_type = typeOfFile(new_path);
 
-
 			if( np_type  == isDIR ){
 					//recurse
-					writeToManifest( new_path , manifest_fd);
+					writeToManifest(new_path , manifest_fd);
 
 			}else if( np_type == isREG ){
 						char* hash_code = generateHash(new_path);
-						//printf("path:%s\t%s\t\t%s\t%d\n", new_path, path, de->d_name, np_type);
-						//printf("%s\thash:%s\n", new_path, hash_code);
+							if( hash_code == NULL ){ pRETURN_ERROR("write hash", false); }
+            //printf("np: %-5s\tp: %-5s\tn: %-5s\th: %-5s\n", new_path, path, de->d_name, hash_code);
 
 						//Write to manifest fd
 						WRITE_AND_CHECKb( manifest_fd, new_path, strlen(new_path));
@@ -730,6 +766,19 @@ char* generateHash (char* file_name){
 
 	//Find size offile in bytes
 	int file_size = sizeOfFile(file_name);
+		if( file_size<0 ){ return NULL;
+
+		//EMPTY
+		}else if( file_size==0 ){
+			char* output = (char*)calloc( (SHA256_DIGEST_LENGTH*2 + 1), 1 );
+			output[SHA256_DIGEST_LENGTH*2]='\0';
+			int i;
+			for(i=0; i<SHA256_DIGEST_LENGTH*2; i++){
+				output[i] = '0';
+			}
+
+			return output;
+		}
 
 	char* buffer = (char*) malloc (file_size);
 	int bytes;
@@ -750,13 +799,13 @@ char* generateHash (char* file_name){
 	SHA256_Final(hash, &ctx);
 
 	char* output = (char*)malloc( SHA256_DIGEST_LENGTH*2 + 1 );
-
-	output[ SHA256_DIGEST_LENGTH *2] = '\0';
+  output[ SHA256_DIGEST_LENGTH*2 ] = '\0';
 
 	int i;
 	for(i=0; i<SHA256_DIGEST_LENGTH; i++){
 		sprintf(output+(i*2), "%02x", hash[i]);
 	}
+	//KEEP HERE BECAUSE SPRINTF
 	free(buffer);
 
 	//returning hashcode generated

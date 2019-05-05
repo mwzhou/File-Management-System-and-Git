@@ -45,27 +45,10 @@ void add( char* proj_name , char* file_name ){
 
 
 int main(int argc, char * argv[]){
-
-	//createManifest("Asst1");
-
-	//add("Asst1","happy.c");
-	createManifest("Rec1");
-	char* manifest_p = combinedPath("Rec1", ".Manifest");
-	ManifestNode* h = buildManifestLL(manifest_p );
-
-	ManifestNode* ptr = h;
-	while(ptr!=NULL){
-		char*f = ptr->file_name;
-
-		ptr = ptr->next;
-
-		delManifestNode(&h, f);
-
-		TESTP;
-		printManifestNode(h);
-		TESTP;
-	}
-
+	createManifest("proj");
+	char* manifest_p = combinedPath("proj", ".Manifest");
+	ManifestNode* h = buildManifestLL(manifest_p);
+	printManifestNode(h);
 
 	return 0;
 

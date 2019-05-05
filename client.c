@@ -170,26 +170,29 @@ bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head 
 		//both LLs have a file entry
 		if(serv_cmpnode != NULL){
 			char* cptr_livehash = generateHash( cptr_file );
+				if( cptr_livehash == NULL ){ pRETURN_ERROR("generate live hash", false); }
 
 			//COMPARISON
 			//same manifest version number, but different hashes from server and live
-				if( (serv_cmpnode->mver_num == client_ptr ->mver_num) &&  (strcmp( cptr_livehash , serv_cmpnode->hash) != 0) )
-			   	up_cmd = "U";
-	 		//diff manifest version number, diff file version number, same hash live hash and client
-				else if ( (serv_cmpnode->mver_num != client_ptr->mver_num) &&  (strcmp( cptr_livehash , client_ptr->hash) == 0)  && (serv_cmpnode->fver_num != client_ptr->fver_num) )
-			   	up_cmd = "M";
+				if( (serv_cmpnode->mver_num == client_ptr->mver_num) &&  (strcmp( cptr_livehash , serv_cmpnode->hash) != 0) ){
+					up_cmd = "U";
 
+			//diff manifest version number, diff file version number, same hash live hash and client
+				}else if ( (serv_cmpnode->mver_num != client_ptr->mver_num) &&  (strcmp( cptr_livehash , client_ptr->hash) == 0)  && (serv_cmpnode->fver_num != client_ptr->fver_num) ){
+				   	up_cmd = "M";
+				}
 			//free
 			free(cptr_livehash);
 
 		 //Only Client has this file
 		}else{
 				 //if manifest version number is same
-				 if( (serverh_mver_num == client_ptr->mver_num) )
+				 if( (serverh_mver_num == client_ptr->mver_num) ){
 					 up_cmd = "U";
 				 //if manifest version number is DIFFERENT
-				 else
+			 	}else{
 				 	 up_cmd = "D";
+				}
 		}
 
 		/*WRITING TO FILE*/

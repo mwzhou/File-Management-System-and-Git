@@ -115,7 +115,8 @@ ManifestNode* buildManifestLL(char* manifest_path){
         }
 
     //LOOPING THROUGH CODEBOOK AND ADDING TO TREE
-        char* curr_token = strtok( manifest_str , "\n\t"); //get rid of new line
+				strtok( manifest_str,"\n\t");
+        char* curr_token = strtok( NULL , "\n\t"); //get rid of new line
         int mver_num = atoi( curr_token );
 
         char* file_name;
@@ -236,6 +237,11 @@ ProjectNode* searchProjectNodePN(ProjectNode* head, char* proj_name){
 Print Manifest Node
 **/
 void printManifestNode( ManifestNode* head ){
+	if(head==NULL){
+		printf("NULL\n");
+		return;
+	}
+
 	ManifestNode* ptr = head;
 	while(ptr!=NULL){
 		printf("mv:%-5d\tfv:%-5d\tfile: %10s\t\thash: %-20s\n", ptr->mver_num,  ptr->fver_num, ptr->file_name, ptr->hash);

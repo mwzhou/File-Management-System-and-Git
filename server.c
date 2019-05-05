@@ -148,6 +148,7 @@ void createServer(  int sockfd, char* proj_name ){
 	int manifest_fd = openFileW( manifest_path );
 		if( manifest_fd < 0){ free(manifest_path); pRETURN_ERRORvoid("open"); }
 	WRITE_AND_CHECKv(manifest_fd, "1\n", 2);
+	WRITE_AND_CHECKv(manifest_fd, "1\n", 2);
 
 	/*make backup directory*/
 	char* backup_proj_dir = concatString(proj_name, ".bak");
@@ -172,38 +173,7 @@ void createServer(  int sockfd, char* proj_name ){
 
 ////////////////////////////////////////////////////////////////////////
 void destroyServer(  int curr_sockid, char* proj_name  ){
-	//Pointer for directory
-	struct dirent *de;
-
-	if( typeOfFile(proj_name)!=isDIR ){pRETURN_ERRORvoid(("Project does not exist")); }
-
-	//Opening the directory of path given
-	DIR *dr = opendir(proj_name);
-		if(!dr) pRETURN_ERRORvoid("not a directory");
-
-	while((de = readdir(dr)) !=NULL){
-		if(strcmp(de->d_name,".")==0 || strcmp(de->d_name,"..")==0){ continue; }
-
-		//Finding name of file and cending path back into method incase of being a directory
-		char* new_path = combinedPath(proj_name, de->d_name);
-		int np_type = typeOfFile(new_path);
-
-		if( np_type  == isDIR ){
-			//if file is directory, recurse to enter
-			destroyServer(curr_sockid, new_path);
-		}
-		else{
-			unlink(new_path);
-		}
-
-		//freeing
-		free(new_path);
-	}
-	if ( sendFileSocket(curr_sockid, "Files and directories have been deleted") == false);
-
-	//closing, and returning
-	closedir(dr);
-
+	if( removeDir( proj_name ) == false){ pRETURN_ERRORvoid("remove"); }
 }
 ////////////////////////////////////////////////////////////////////////
 

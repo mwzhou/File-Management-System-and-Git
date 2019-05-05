@@ -476,7 +476,28 @@ void pushClient(char* proj_name){
 		//check if manifest doesn't exist on Server
 		if( receiveSig(sockfd) == false ) pEXIT_ERROR(".Commit file does not exist on Server");
 
-	//TODO check if clients .Upgrade file contains any Ms
+	//check if clients .Upgrade file contains any Ms
+	char* update_file = combinedPath(proj_name, ".Update");
+	FILE* uF = fopen(update_file,"r");
+	bool hasM = false;
+	if(uF){
+		int lineSize = 1024;
+		char buffer[lineSize];
+		//going update file and searching for M codes
+		while((fgets(buffer, lineSize, uF) )!=NULL){
+			char* start = strstr(buffer,"\t");
+			int index = start-buffer;
+			char* code = substr(buffer, index+1, 2);
+			if(strcmp(code,"M")==0){
+				hasM = true;
+				free(code);
+				break;
+			}
+			free(code);
+		}
+		fclose(uF);
+	}
+	if( sendSig(sockfd, ( hasM==true ) ) == false )pEXIT_ERROR("A file was modified since the last upgrade");
 
 
 	//Create a directory within the project which will be used to send files over	
@@ -487,9 +508,9 @@ void pushClient(char* proj_name){
 		mkdir(dir_to_send, 0700);
 	}
 
-	//getting configure file	
-	char* configure_file = combinedPath(proj_name, ".Commit");
-	FILE* cF = fopen(configure_file,"r");
+	//getting commit file	
+	char* commit_file = combinedPath(proj_name, ".Commit");
+	FILE* cF = fopen(commit_file,"r");
 
 	//setting initial variables	
 	int lineSize = 1024;
@@ -501,36 +522,56 @@ void pushClient(char* proj_name){
 		//get complete file name
 		char* end = strstr(buffer,"\t");
 		int index_end = end-buffer;
-		char* start = strstr(buffer,"/");
-		int index_start = start-buffer;
 		char* file_path = substr(buffer, 0, index_end+1);
-		char* file_name = substr(buffer, index_start+1, (index_end-index_start));
 
+		//get single file name
+		int index_start = lengthBeforeLastOccChar( buffer , '/');
+		char* file_name = substr(buffer, index_start+1, (index_end-index_start));
 		char* copy_path = combinedPath(dir_to_send,file_name);
 
 		copyDir(file_path , copy_path);
 
 		free(file_path);
+		free(file_name);
 	}
 
-	//close and send file to server	
+	//close and add .Commit and .Manifest in file to server	
 	fclose(cF);
 	char* copy_path = combinedPath(dir_to_send,".Commit");
-	copyDir( configure_file , copy_path);
-
-	//move manifest into file
-	//char* clientManifest = combinedPath(proj_name, ".Manifest");
-	//moveFile(clientManifest , dir_to_send);
+	copyDir( commit_file , copy_path);
+	char* copy_path2 = combinedPath(dir_to_send, ".Manifest");
+	char* clientManifest = combinedPath(proj_name, ".Manifest");
+	copyDir(clientManifest, copy_path2);
 
 	//sending file
 	char* bakup_proj = concatString(proj_name, ".bak");
 	if (sendTarFile( sockfd, dir_to_send, bakup_proj) == false) {pRETURN_ERRORvoid("sendTarFile failed");}
 
-	//freeing
-	//removeDir(dir_to_send);
+	//recieving error if .Commits were not the same and deleting .Commit file and exiting
+	if( receiveSig(sockfd) == false ) {
+		bool delete_file_dir = removeDir(dir_to_send);
+		if(delete_file_dir==false){pRETURN_ERRORvoid("Removing directory failed");}
+		//bool delete_commit = removeDir(commit_file);
+		//if(delete_commit==false){pRETURN_ERRORvoid("Removing directory failed");}
+		free(dir_to_send);
+		free(clientManifest);
+		free(copy_path);
+		free(commit_file);
+		free(bakup_proj);
+		pEXIT_ERROR(".Commits were not the same");
+	}
+
+	//freeing and deleting directory
+	bool delete_file_dir = removeDir(dir_to_send);
+	if(delete_file_dir==false){pRETURN_ERRORvoid("Removing directory failed");}
+	//bool delete_commit = removeDir(commit_file); //TODO uncomment
+	//if(delete_commit==false){pRETURN_ERRORvoid("Removing directory failed");}
 	free(dir_to_send);
-	//free(clientManifest);
-	free(configure_file);
+	free(update_file);
+	free(clientManifest);
+	free(copy_path);
+	free(copy_path2);
+	free(commit_file);
 	free(bakup_proj);
 
 	return;

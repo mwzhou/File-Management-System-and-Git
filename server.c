@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <math.h>
 
 #include <dirent.h>
 #include <unistd.h>
@@ -132,7 +133,11 @@ void pushServer(  int sockfd, char* proj_name  ){
 		//check if manifest doesn't on Server
 		char* commit_server_path = combinedPath( proj_name, ".Commit"); //get path of manifest
 		if( sendSig(sockfd, ( typeOfFile(commit_server_path) != isREG ) ) == false ){ free(commit_server_path);  pRETURN_ERRORvoid(".Commit file doesn't exist in project on server"); }
+		//if file was modified on client side
+		if( receiveSig(sockfd) == false ) {free(commit_server_path); pRETURN_ERRORvoid("A file was modified since the last upgrade on the client side");}
 
+
+	//TODO lock the repository
 
 	//recieving files send from client	
 	char* bakup_proj = concatString( proj_name, ".bak" );
@@ -142,7 +147,23 @@ void pushServer(  int sockfd, char* proj_name  ){
 	//get client commit file:
 	char* commit_client_path = combinedPath(dir_of_files,".Commit");
 
-	//TODO compare server commit file to client comit file
+	//ERROR CHECK: if client Commit does not match server commit
+	char* commitServer = readFile(commit_server_path);
+	char* commitClient = readFile(commit_client_path);
+	if( sendSig(sockfd, ( strcmp(commitClient, commitServer)!=0 ) ) == false ){ 
+		//delete files sent to server from client
+		bool delete_client_files = removeDir(dir_of_files);
+		if(delete_client_files==false){pRETURN_ERRORvoid("Removing directory failed");}
+		free(commitClient); 
+		free(commit_server_path); 
+		free(bakup_proj); 
+		free(dir_of_files); 
+		free(commitServer); 
+		pRETURN_ERRORvoid(".Commit of client and server are different!");
+	}
+	free(commitClient); 
+	free(commitServer);
+	//TODO expire All other commits from other cliets if commit files are the same
 
 	//Get server's current project version to copy and rename project.
 	char* manifest_path = combinedPath(proj_name, ".Manifest");
@@ -157,38 +178,70 @@ void pushServer(  int sockfd, char* proj_name  ){
 		fgets(buffer, lineSize, mP);
 		count++;
 		if(count==2){
-			og_pNum = buffer;
+			og_pNum = substr(buffer,0,2);
 		}
 	}
-
-	//go back to beginning of file
+	//go back to beginning of file and close
+	rewind(mP);
 	fclose(mP);
-	char* versionIs = concatString("V",og_pNum);
-	char* bak_path = concatString(proj_name,".bak");
-	char* copyPath = combinedPath(bak_path,versionIs);
-	
-	//copy V1 into directory
+
+	//creat bakup version
+	char* copyPath = combinedPath(bakup_proj,og_pNum);
+
+	//copy backup version into into directory
 	bool s = copyDir(proj_name, copyPath);
 	if(s==false){pRETURN_ERRORvoid("copying failed");}
 
 	//tar version file and delete normal file
-	printf("%s\t%s\n", copyPath, bak_path);
-	makeTar(copyPath, bak_path);
-	//bool o = removeDir(copyPath);
-	//if(o==false){pRETURN_ERRORvoid("Removing directory failed");}
+	makeTar(copyPath, bakup_proj);
+	bool delete_version_file = removeDir(copyPath);
+	if(delete_version_file==false){pRETURN_ERRORvoid("Removing directory failed");}
 
 	//TODO UMAD
 
+	//incrementing project number and replacing server's manifest with client's manifest
+	char* manifest_client_path = combinedPath(dir_of_files,".Manifest");
+	char* temp_path = combinedPath(dir_of_files,"replace.tmp");
+	FILE* tempFile = fopen(temp_path,"w");
+	FILE* cmP = fopen(manifest_client_path, "r");
+	int line = 0;
+	while((fgets(buffer, lineSize, cmP) )!=NULL)
+        {
+		line++;
+		if(line==2){
+			char* num = substr(buffer, 0, 2);
+			int vNum = atoi(num);
+			free(num);
+			vNum++;
+			int len = (int)((ceil(log10(vNum))+1)*sizeof(char));
+			char str[len];
+			sprintf(str, "%d", vNum);
+			fputs(str, tempFile);
+			fputs("\n", tempFile);
+		}
+		else{
+			fputs(buffer, tempFile);
+		}
+        }
+	fputs("\n", tempFile);
+	//replace manifest with new one
+	remove(manifest_client_path);
+	rename(temp_path,manifest_client_path);
+	fclose(cmP);
+	fclose(tempFile);
+
+	//moving new manifest to clients's project and replacing it
+	moveFile(manifest_client_path, proj_name);
 
 	//Removing and Freeing
-	//bool d = removeDir(dir_of_files);
-	//if(d==false){pRETURN_ERRORvoid("Removing directory failed");}
+	bool delete_client_files = removeDir(dir_of_files);
+	if(delete_client_files==false){pRETURN_ERRORvoid("Removing directory failed");}
 	free(manifest_path);
+	free(temp_path);
+	free(og_pNum);
 	free(commit_client_path);
 	free(commit_server_path);
-	free(versionIs);
-	free(bak_path);
-	//free(sys_cmd);
+	free(manifest_client_path);
 	free(copyPath);
 	free(bakup_proj);
 }

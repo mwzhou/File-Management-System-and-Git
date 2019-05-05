@@ -47,8 +47,8 @@ void add( char* proj_name , char* file_name ){
 
 
 int main(int argc, char * argv[]){
-	createManifest("proj");
-	char* manifest_p = combinedPath("proj", ".Manifest");
+	createManifest("r1");
+	char* manifest_p = combinedPath("r1", ".Manifest");
 	ManifestNode* h = buildManifestLL(manifest_p);
 	printManifestNode(h);
 

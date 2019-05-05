@@ -48,8 +48,6 @@ void checkoutServer( int sockfd, char* proj_name ){
 
 
 //[3.2] UPDATE//////////////////////////////////////////////////////////////////////
-
-
 /*
 update
 */
@@ -62,7 +60,6 @@ void updateServer(  int sockfd, char* proj_name  ){
 		//check if manifest doesn't on Server
 		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
 		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERRORvoid(".Manifest file doesn't exist in project on server"); }
-
 
 
 	/*SEND manifest file to client*/
@@ -98,25 +95,38 @@ void upgradeServer(  int sockfd, char* proj_name  ){
 
 
 //[3.4] COMMIT//////////////////////////////////////////////////////////////
-void* commitServer( int sockfd, char* proj_name ){
+void commitServer( int sockfd, char* proj_name ){
 	printf("\n\tEntered command: commit\n");
-
 	/*ERROR CHECK*/
-		//check if project exists on Server
-		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERROR("project doesn't exist on server",NULL);
-		//wait from client if update file is empty or doesn't exist
-		if( receiveSig(sockfd) == false) pRETURN_ERROR(".Update file is nonempty on Client!",NULL);
+		//check if project name doesn't exist on Server
+		if( sendSig(sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false ) pRETURN_ERRORvoid("project doesn't exist on server");
+		//check if manifest doesn't on Server
+		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
+		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERRORvoid(".Manifest file doesn't exist in project on server"); }
+		//check if manifest exists on Client
+		if( receiveSig(sockfd) == false ) pRETURN_ERRORvoid(".Manifest file does not exist on Client");
 
-	//sending project .Manifest to client
-	char* bakup_proj = concatString( proj_name, ".bak" );
-	char* manifest_path = combinedPath(proj_name,".Manifest");
-	if (sendTarFile( sockfd, manifest_path, bakup_proj) == false) {pRETURN_ERROR("sendTarFile failed",NULL);}
 
-	//freeing
-	free(bakup_proj);
-	free(manifest_path);
+	//send .Manifest to Client
+		char* backup_proj = concatString( proj_name, ".bak" );
+		if( sendTarFile(sockfd, manifest_path, backup_proj) == false ) pRETURN_ERRORvoid("sending Manifest File");
 
-	return 0;
+	//check if .Manifest versions are different
+		if( receiveSig( sockfd ) == false){
+			printf("\tManifest Versions are different, waiting for user to update Manifest Version\n");
+			return;
+		}
+
+	//check if write was successful
+		if( receiveSig( sockfd ) == false){
+			printf("\tError on Client side committing\n");
+		}else{
+			char* commit_file =  recieveTarFile( sockfd, proj_name );
+			printf("\tSuccessfully retrieved .Commit file!\n");
+			free(commit_file);
+		}
+
+		return;
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -171,15 +181,25 @@ void createServer(  int sockfd, char* proj_name ){
 	free(manifest_path);
 	close(manifest_fd);
 
-	return 0;
+	return;
 }
 ////////////////////////////////////////////////////////////////////////
 
 
 //DESTROY//////////////////////////////////////////////////////////////////////
-void* destroyServer(int sockfd, char* proj_name ){
-	if( removeDir( proj_name ) == false){ pRETURN_ERRORvoid("remove"); } //TODO : error check and signals
-	return 0;
+void destroyServer(int sockfd, char* proj_name ){
+	/*ERROR CHECK*/
+		//check if project exists on Server
+		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on server");
+
+	/*Remove Project and Delete*/
+		if( sendSig( sockfd, ( removeDir( proj_name ) == false ) ) == false ){
+			pRETURN_ERRORvoid("failed to remove");
+		}else{
+			printf("Successfully deleted project on server!");
+		}
+
+	return;
 
 }
 ////////////////////////////////////////////////////////////////////////
@@ -241,7 +261,7 @@ void* rollbackServer(  int sockfd, char* proj_name, char* version_num){ //TODO C
 void* connect_client( void* curr_clientthread ){
 	ClientThread* args = (ClientThread*)curr_clientthread;
 	int sockfd = args->curr_socket;
-  
+
 	printf("%d] Success on connection!\n", sockfd);
 
 	/*Recieve arguments from Client*/

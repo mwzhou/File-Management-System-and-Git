@@ -92,7 +92,6 @@ ManifestNode* searchManifestNode(ManifestNode* head, char* file_name){
 }
 
 
-
 /**
 builds Manifest Linked List
 @returns Manifest LL head if successful

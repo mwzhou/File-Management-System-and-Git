@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <math.h>
 
 #include <dirent.h>
 #include <unistd.h>
@@ -84,7 +85,6 @@ void upgradeServer(  int sockfd, char* proj_name  ){
 		//check if .Update file is emptry
 		if( receiveSig(sockfd) == false){ printf("\tProject is up to date\n"); return; }
 
-
 	/*OPERATIONS*/
 	/**SEND project over to client**/
 		char* backup_proj_path = concatString( proj_name, ".bak" ); //get backup folder_dir
@@ -137,13 +137,123 @@ void commitServer( int sockfd, char* proj_name ){
 //[3.5] PUSH//////////////////////////////////////////////////////////////
 void pushServer(  int sockfd, char* proj_name  ){
 	printf("\nEntered command: push\n");
-
 	/*ERROR CHECK*/
 		//check if project name doesn't exist on Server
 		if( sendSig(sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false ) pRETURN_ERRORvoid("project doesn't exist on server");
 		//check if manifest doesn't on Server
-		char* manifest_path = combinedPath( proj_name, ".Manifest"); //get path of manifest
-		if( sendSig(sockfd, ( typeOfFile(manifest_path) != isREG ) ) == false ){ free(manifest_path);  pRETURN_ERRORvoid(".Manifest file doesn't exist in project on server"); }
+		char* commit_server_path = combinedPath( proj_name, ".Commit"); //get path of manifest
+		if( sendSig(sockfd, ( typeOfFile(commit_server_path) != isREG ) ) == false ){ free(commit_server_path);  pRETURN_ERRORvoid(".Commit file doesn't exist in project on server"); }
+		//if file was modified on client side
+		if( receiveSig(sockfd) == false ) {free(commit_server_path); pRETURN_ERRORvoid("A file was modified since the last upgrade on the client side");}
+
+
+	//TODO lock the repository
+
+	//recieving files send from client	
+	char* bakup_proj = concatString( proj_name, ".bak" );
+	char* dir_of_files = recieveTarFile( sockfd, bakup_proj );
+		if(dir_of_files == NULL){ pRETURN_ERRORvoid("recieveTarFile failed"); }
+
+	//get client commit file:
+	char* commit_client_path = combinedPath(dir_of_files,".Commit");
+
+	//ERROR CHECK: if client Commit does not match server commit
+	char* commitServer = readFile(commit_server_path);
+	char* commitClient = readFile(commit_client_path);
+	if( sendSig(sockfd, ( strcmp(commitClient, commitServer)!=0 ) ) == false ){ 
+		//delete files sent to server from client
+		bool delete_client_files = removeDir(dir_of_files);
+		if(delete_client_files==false){pRETURN_ERRORvoid("Removing directory failed");}
+		free(commitClient); 
+		free(commit_server_path); 
+		free(bakup_proj); 
+		free(dir_of_files); 
+		free(commitServer); 
+		pRETURN_ERRORvoid(".Commit of client and server are different!");
+	}
+	free(commitClient); 
+	free(commitServer);
+	//TODO expire All other commits from other cliets if commit files are the same
+
+	//Get server's current project version to copy and rename project.
+	char* manifest_path = combinedPath(proj_name, ".Manifest");
+	FILE* mP = fopen(manifest_path,"r");
+	int count = 0;
+	char* og_pNum;
+	int lineSize = 1024;
+	char buffer[lineSize];
+
+	//get project Number
+	while(count<2){
+		fgets(buffer, lineSize, mP);
+		count++;
+		if(count==2){
+			og_pNum = substr(buffer,0,2);
+		}
+	}
+	//go back to beginning of file and close
+	rewind(mP);
+	fclose(mP);
+
+	//creat bakup version
+	char* copyPath = combinedPath(bakup_proj,og_pNum);
+
+	//copy backup version into into directory
+	bool s = copyDir(proj_name, copyPath);
+	if(s==false){pRETURN_ERRORvoid("copying failed");}
+
+	//tar version file and delete normal file
+	makeTar(copyPath, bakup_proj);
+	bool delete_version_file = removeDir(copyPath);
+	if(delete_version_file==false){pRETURN_ERRORvoid("Removing directory failed");}
+
+	//TODO UMAD
+
+	//incrementing project number and replacing server's manifest with client's manifest
+	char* manifest_client_path = combinedPath(dir_of_files,".Manifest");
+	char* temp_path = combinedPath(dir_of_files,"replace.tmp");
+	FILE* tempFile = fopen(temp_path,"w");
+	FILE* cmP = fopen(manifest_client_path, "r");
+	int line = 0;
+	while((fgets(buffer, lineSize, cmP) )!=NULL)
+        {
+		line++;
+		if(line==2){
+			char* num = substr(buffer, 0, 2);
+			int vNum = atoi(num);
+			free(num);
+			vNum++;
+			int len = (int)((ceil(log10(vNum))+1)*sizeof(char));
+			char str[len];
+			sprintf(str, "%d", vNum);
+			fputs(str, tempFile);
+			fputs("\n", tempFile);
+		}
+		else{
+			fputs(buffer, tempFile);
+		}
+        }
+	fputs("\n", tempFile);
+	//replace manifest with new one
+	remove(manifest_client_path);
+	rename(temp_path,manifest_client_path);
+	fclose(cmP);
+	fclose(tempFile);
+
+	//moving new manifest to clients's project and replacing it
+	moveFile(manifest_client_path, proj_name);
+
+	//Removing and Freeing
+	bool delete_client_files = removeDir(dir_of_files);
+	if(delete_client_files==false){pRETURN_ERRORvoid("Removing directory failed");}
+	free(manifest_path);
+	free(temp_path);
+	free(og_pNum);
+	free(commit_client_path);
+	free(commit_server_path);
+	free(manifest_client_path);
+	free(copyPath);
+	free(bakup_proj);
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -281,7 +391,6 @@ void rollbackServer(  int sockfd, char* proj_name, char* version_num){ //TODO Cl
 void* connect_client( void* curr_clientthread ){
 	ClientThread* args = (ClientThread*)curr_clientthread;
 	int sockfd = args->curr_socket;
-
 	printf("%d] Success on connection!\n", sockfd);
 
 	/*Recieve arguments from Client*/

@@ -3,6 +3,7 @@
 #include <string.h>
 #include<stdbool.h>
 #include<errno.h>
+#include <math.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -12,6 +13,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <openssl/sha.h>
 #include<sys/types.h>
 #include<netdb.h>
 
@@ -36,7 +38,7 @@ void writeConfigureFile(char* IP, char* port){
 	int file = openFileW("./.configure");
 		if(file<0) pEXIT_ERROR("writing configure file");
 
-	//WRITE IP and Port info to file
+	//WRITE IP and Port info to file#include <openssl/sha.h>
 	WRITE_AND_CHECKe(file, IP, strlen(IP));
 	WRITE_AND_CHECKe(file, "\n", 1);
 	WRITE_AND_CHECKe(file, port, strlen(port));
@@ -113,15 +115,13 @@ void updateClient(char* proj_name){
 		//get manifest file for client
 			char* manifest_client_path = combinedPath( proj_name, ".Manifest" );
 
-
 		/*Get items!*/
 				//get path for .Update file
 				char* update_path = combinedPath( proj_name, ".Update" );
 				//create file
 				int update_fd = openFileW( update_path );
 					if( update_fd < 0 ){ 	free(manifest_client_path); free(manifest_serv_path); free(update_path ); pEXIT_ERROR("update"); }
-
-
+  
 		/* Comparison Linked Lists should be free after write*/
 			ManifestNode* clientLL = buildManifestLL( manifest_client_path );
 				free(manifest_client_path);
@@ -144,10 +144,7 @@ void updateClient(char* proj_name){
 			if( sizeOfFile(update_path) == 0 ){
 				printf("\t\tCompletely up to date with Server. No updates neccessary\n");
 			}
-
 		}
-
-
 
 	//free and return
 		close( update_fd );
@@ -191,7 +188,6 @@ bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head 
 				}else if( (serv_cmpnode->mver_num == client_ptr->mver_num) &&  (strcmp( cptr_livehash , serv_cmpnode->hash) == 0)  && (serv_cmpnode->fver_num == client_ptr->fver_num)  ){
 						up_cmd = "N";
 				}
-
 			//free
 			free(cptr_livehash);
 
@@ -228,9 +224,8 @@ bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head 
 		if(serv_cmpnode != NULL) delManifestNode( &serverLL_head, cptr_file);
 		delManifestNode( &clientLL_head, cptr_file);
 	}
-
-
-
+  
+  
 	/*Comparison rest of Server files*/
 	ManifestNode* server_ptr = serverLL_head;
 		if( server_ptr == NULL ) return true;
@@ -289,6 +284,7 @@ void upgradeClient(char* proj_name){
 		char* backup_proj_path = concatString( proj_name, ".bak" ); //get backup folder_dir
 		char* serv_proj_path = recieveTarFile( sockfd, backup_proj_path);
 			if(serv_proj_path == NULL) pEXIT_ERROR("error recieving directory");
+
 	/*PARSE THROUGH FILE*/
 		char* tok = strtok( update_file, "\n\t");
 		do{
@@ -325,7 +321,7 @@ void upgradeClient(char* proj_name){
 					free(fserv_version);
 					free(dir_to_store);
 					break;
-
+          
 				}case 'D':
 					//REMOVE FILE
 					remove(up_file);
@@ -338,7 +334,6 @@ void upgradeClient(char* proj_name){
 
 		//printf("FILE %s CMD %s\n\n", up_file, up_cmd);
 		}while( (tok = strtok(NULL, "\n\t")) != NULL );
-
 
 	//replace Manifest w/ Server's manifest
 		//get server version
@@ -374,7 +369,6 @@ void commitClient(char* proj_name){
 		//check if manifest doesn't exist on client
 		char* client_manifest = combinedPath( proj_name, ".Manifest" );
 		if( sendSig(sockfd,  (typeOfFile(client_manifest)!= isREG ) ) == false ){ pEXIT_ERROR(".Manifest does not exist on Client"); }
-
 
 	//retrieve manifest from server
 		char* backup_proj = concatString( proj_name, ".bak" );
@@ -504,7 +498,105 @@ void pushClient(char* proj_name){
 		//check if project name doesn't exist on Server
 		if( receiveSig(sockfd) == false ) pEXIT_ERROR("project does not exist on Server");
 		//check if manifest doesn't exist on Server
-		if( receiveSig(sockfd) == false ) pEXIT_ERROR(".Manifest file does not exist on Server");
+		if( receiveSig(sockfd) == false ) pEXIT_ERROR(".Commit file does not exist on Server");
+
+	//check if clients .Upgrade file contains any Ms
+	char* update_file = combinedPath(proj_name, ".Update");
+	FILE* uF = fopen(update_file,"r");
+	bool hasM = false;
+	if(uF){
+		int lineSize = 1024;
+		char buffer[lineSize];
+		//going update file and searching for M codes
+		while((fgets(buffer, lineSize, uF) )!=NULL){
+			char* start = strstr(buffer,"\t");
+			int index = start-buffer;
+			char* code = substr(buffer, index+1, 2);
+			if(strcmp(code,"M")==0){
+				hasM = true;
+				free(code);
+				break;
+			}
+			free(code);
+		}
+		fclose(uF);
+	}
+	if( sendSig(sockfd, ( hasM==true ) ) == false )pEXIT_ERROR("A file was modified since the last upgrade");
+
+
+	//Create a directory within the project which will be used to send files over	
+	char* dir_to_send = concatString(proj_name,".to_send");
+	struct stat st = {0};
+	//check if directory exists, otherwise create it
+	if(stat(dir_to_send, &st) == -1){
+		mkdir(dir_to_send, 0700);
+	}
+
+	//getting commit file	
+	char* commit_file = combinedPath(proj_name, ".Commit");
+	FILE* cF = fopen(commit_file,"r");
+
+	//setting initial variables	
+	int lineSize = 1024;
+	char buffer[lineSize];
+
+	//going commit file and storing them under directory to be sent to server
+	while((fgets(buffer, lineSize, cF) )!=NULL){
+	
+		//get complete file name
+		char* end = strstr(buffer,"\t");
+		int index_end = end-buffer;
+		char* file_path = substr(buffer, 0, index_end+1);
+
+		//get single file name
+		int index_start = lengthBeforeLastOccChar( buffer , '/');
+		char* file_name = substr(buffer, index_start+1, (index_end-index_start));
+		char* copy_path = combinedPath(dir_to_send,file_name);
+
+		copyDir(file_path , copy_path);
+
+		free(file_path);
+		free(file_name);
+	}
+
+	//close and add .Commit and .Manifest in file to server	
+	fclose(cF);
+	char* copy_path = combinedPath(dir_to_send,".Commit");
+	copyDir( commit_file , copy_path);
+	char* copy_path2 = combinedPath(dir_to_send, ".Manifest");
+	char* clientManifest = combinedPath(proj_name, ".Manifest");
+	copyDir(clientManifest, copy_path2);
+
+	//sending file
+	char* bakup_proj = concatString(proj_name, ".bak");
+	if (sendTarFile( sockfd, dir_to_send, bakup_proj) == false) {pRETURN_ERRORvoid("sendTarFile failed");}
+
+	//recieving error if .Commits were not the same and deleting .Commit file and exiting
+	if( receiveSig(sockfd) == false ) {
+		bool delete_file_dir = removeDir(dir_to_send);
+		if(delete_file_dir==false){pRETURN_ERRORvoid("Removing directory failed");}
+		//bool delete_commit = removeDir(commit_file);
+		//if(delete_commit==false){pRETURN_ERRORvoid("Removing directory failed");}
+		free(dir_to_send);
+		free(clientManifest);
+		free(copy_path);
+		free(commit_file);
+		free(bakup_proj);
+		pEXIT_ERROR(".Commits were not the same");
+	}
+
+	//freeing and deleting directory
+	bool delete_file_dir = removeDir(dir_to_send);
+	if(delete_file_dir==false){pRETURN_ERRORvoid("Removing directory failed");}
+	//bool delete_commit = removeDir(commit_file); //TODO uncomment
+	//if(delete_commit==false){pRETURN_ERRORvoid("Removing directory failed");}
+	free(dir_to_send);
+	free(update_file);
+	free(clientManifest);
+	free(copy_path);
+	free(copy_path2);
+	free(commit_file);
+	free(bakup_proj);
 
 	return;
 }
@@ -746,7 +838,6 @@ void rollbackClient(char* proj_name, char* version){
 
 	//TODO
 
-
 	return;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -905,3 +996,6 @@ int main(int argc, char** argv){
 
 	return 0;
 }
+
+
+

@@ -23,6 +23,99 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 //FILE methods/////////////////////////////////////////////////////////////////////
 
 /**
+Goes through project sent and replaces hash in .Manifest, taking in Project Name and File Name. returns true only if file hash codes have changed
+**/
+bool replaceHash(char* manifest_path, FILE* commitFile, char* proj_name){
+
+	//opening manifest file and creating file that will overwrite manifest file
+	FILE * fPtr;
+   	FILE * fTemp;
+	fPtr = fopen(manifest_path,"r");
+	if (fPtr == NULL) pEXIT_ERROR("fopen");
+	
+	char* temp_path = combinedPath(proj_name,"replace.tmp");
+	fTemp = fopen(temp_path,"w");
+	if (fTemp == NULL) pEXIT_ERROR("fopen");
+
+	//setting initial variables	
+	int lineSize = 1024;
+	char buffer[lineSize];
+	char temp[lineSize];
+	//going through file line by line
+	while((fgets(buffer, lineSize, fPtr) )!=NULL){
+
+		if(strlen(buffer)<SHA256_DIGEST_LENGTH*2)
+			continue;
+
+		//get complete path of file
+		char* end = strstr(buffer,"\t");
+		int index = end-buffer;
+		char* file_path = substr(buffer, 0, index+1);
+
+		//find index of original hash in line(stored in buffer)
+		int times_tab = 0;
+		int vNum = 0;
+		while(times_tab!=2){
+			if(buffer[index] == '\t'){
+				times_tab++;
+				if(times_tab==1){
+					char* num = substr(buffer, index+1, 2);
+					vNum = atoi(num);
+					free(num);
+				}
+			}
+			index++;
+		}
+
+		//increment version number
+		vNum++;
+
+		//comparing old and new Hash's
+		char* og_hash = substr(buffer, index, SHA256_DIGEST_LENGTH*2+1);
+		char* new_hash = generateHash(file_path);
+
+		//if new_hash not equal to og_hash enter into .Commit file(with v num incremented)
+		if(strcmp(og_hash,new_hash)!=0){
+			int len = (int)((ceil(log10(vNum))+1)*sizeof(char));
+			char str[len];
+			sprintf(str, "%d", vNum);
+
+			//putting into .Commit
+			fputs(file_path, commitFile);
+			fputs("\t", commitFile);
+			fputs(str, commitFile);
+			fputs("\t", commitFile);
+			fputs(og_hash, commitFile);
+			fputs("\n", commitFile);
+			
+		}
+
+		//entering changed hash into future replacement manifest file
+		strcpy(temp, buffer);
+		buffer[index] = '\0';
+		strcat(buffer, new_hash);
+		strcat(buffer, temp+index+strlen(new_hash));
+		fputs(buffer, fTemp);
+
+		//freeing
+		free(new_hash);
+		free(og_hash);
+		free(file_path);
+	}
+	
+	//replacing mnifest file with updated manifest file
+	remove(manifest_path);
+	rename(temp_path,manifest_path);
+	
+	//Fclosing
+	fclose(fPtr);
+   	fclose(fTemp);
+
+	return true;
+}
+
+
+/**
 goes through file line by line and returns the line_num w/ instance of target
 **/
 int extractLine(char* fpath, char* target){

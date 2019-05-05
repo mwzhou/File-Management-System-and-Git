@@ -12,29 +12,11 @@
 
 #define sendTarFile( sockfd, file_path, dir_to_store)	sendTarFilest( sockfd, file_path, dir_to_store,  "Client" )
 #define recieveTarFile( sockfd, dir_to_store) recieveTarFilest( sockfd, dir_to_store , "Client")
+
+#define addProjectNode( proj_name ) addProjectNodePN(&head, proj_name)
+#define delProjectNode( proj_name ) delProjectNodePN(&head, proj_name)
+#define searchProjectNode( proj_name ) searchProjectNodePN(head, proj_name)
 /////////////////////////////////////////////////////////////////////////
-
-
-//STRUCTS
-//Struct for linked list of ip adresses of pthreads being created
-typedef struct ProjectNode{
-	char* project_name;
-	pthread_mutex_t lock;
-	struct ProjectNode *next;
-}ProjectNode;
-
-
-typedef struct ClientThread{
-	pthread_t client;
-	int curr_socket;
-}ClientThread;
-
-//linked List Methods
-bool addNode(char* proj_name);
-bool delNode(char* proj_name);
-ProjectNode* search(char* proj_name);
-
-void* destroyServerRec(  int sockfd, char* proj_name );
 
 
 #endif

@@ -18,10 +18,18 @@ Manifest ManifestNode Linked List
 
  //Struct for linked list of ip adresses of pthreads being created
  typedef struct ProjectNode{
- 	char* project_name;
+ 	char* proj_name;
  	pthread_mutex_t lock;
  	struct ProjectNode *next;
  }ProjectNode;
+
+
+ //STRUCTS
+ typedef struct ClientThread{
+ 	pthread_t client;
+ 	int curr_socket;
+  bool done;
+ }ClientThread;
 
 
 //METHOD SIGS
@@ -37,4 +45,6 @@ Manifest ManifestNode Linked List
 	ProjectNode* searchProjectNodePN(ProjectNode* head, char* proj_name);
 
   void printManifestNode( ManifestNode* head );
+  void printProjectNode( ManifestNode* head );
+  
 #endif

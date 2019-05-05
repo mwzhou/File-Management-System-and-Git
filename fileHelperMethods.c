@@ -5,14 +5,14 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <errno.h>
-#include <math.h>
+#include<errno.h>
+#include<math.h>
 
 #include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/types.h>
+#include<sys/types.h>
 #include <openssl/sha.h>
 #include"fileHelperMethods.h"
 
@@ -22,7 +22,6 @@ fileHelperMethods.c is a self-made file library since we're not allowed to use f
 
 
 //FILE methods/////////////////////////////////////////////////////////////////////
-
 /**
 Goes through project sent and replaces hash in .Manifest, taking in Project Name and File Name. returns true only if file hash codes have changed
 **/

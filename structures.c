@@ -58,28 +58,23 @@ bool delManifestNode(ManifestNode** head_addr, char* file_name){
 	//did not find node
 	if(cmp == -1 ) return false;
 
+	ManifestNode* temp;
 	//delete head
 	if( prev == NULL ){
-		ManifestNode* temp = head;
+		temp = head;
 		*head_addr = head->next; //update head
-
-		//free
-		free(temp->file_name);
-		free(temp->hash);
-		free(temp);
 
 	//delete
 	}else{
-		ManifestNode* temp = ptr;
+		temp = ptr;
 		prev->next = ptr->next;
 		*head_addr = head;
-
-		//free
-		free(temp->file_name);
-		free(temp->hash);
-		free(temp);
 	}
 
+	//free
+	free(temp->file_name);
+	free(temp->hash);
+	free(temp);
 	return true;
 }
 
@@ -120,7 +115,8 @@ ManifestNode* buildManifestLL(char* manifest_path){
         }
 
     //LOOPING THROUGH CODEBOOK AND ADDING TO TREE
-        char* curr_token = strtok( manifest_str , "\n\t"); //get rid of new line
+				strtok( manifest_str,"\n\t");
+        char* curr_token = strtok( NULL , "\n\t"); //get rid of new line
         int mver_num = atoi( curr_token );
 
         char* file_name;
@@ -156,22 +152,82 @@ ManifestNode* buildManifestLL(char* manifest_path){
 
 
 
-//////Linked List Methods////////////////////////////////////////////////////////////////
+//////Project Linked List Methods////////////////////////////////////////////////////////////////
 
 //initializes head and adds node to start of linked list
-bool addProjectNodePN( ProjectNode** head, char* proj_name){
-	return false;
+bool addProjectNodePN( ProjectNode** head_addr, char* proj_name){
+	if(proj_name==NULL) return false;
+
+	/*Create Node to_add*/
+	ProjectNode* to_add = (ProjectNode*)malloc(sizeof(ProjectNode));
+		to_add -> proj_name = proj_name;
+		//initialize lock
+		pthread_mutex_t lock;
+		pthread_mutex_init( &lock, NULL);
+		to_add->lock = lock;
+		to_add->next = NULL;
+
+	/*Adding node*/
+	if(head_addr==NULL || *head_addr==NULL){
+		*head_addr = to_add; //update head
+	}else{
+		to_add->next = *head_addr;
+		*head_addr = to_add; //update head
+	}
+	return true;
 }
 
 
 //Deletes a node, returs true if found and deleted, returns false if not found
-bool delProjectNodePN(ProjectNode** head, char* proj_name){
-	return false;
+//FREES DELETED NODE
+bool delProjectNodePN(ProjectNode** head_addr, char* proj_name){
+	if(proj_name==NULL) return false;
+
+	ProjectNode* head = *head_addr;
+	ProjectNode* prev = NULL;
+	ProjectNode* ptr = head;
+
+	//search for string and get node
+	int cmp = -1;
+	while( ptr!=NULL ){
+		if( (cmp = strcmp(ptr->proj_name,proj_name)) == 0 )break;
+		prev = ptr;
+		ptr = ptr->next;
+	}
+
+	//did not find node
+	if(cmp == -1 ) return false;
+
+	ProjectNode* temp;
+	//delete head
+	if( prev == NULL ){
+		temp = head;
+		*head_addr = head->next; //update head
+
+	//delete middle
+	}else{
+		temp = ptr;
+		prev->next = ptr->next;
+		*head_addr = head;
+	}
+
+	//free and close mutex
+	free(temp->proj_name);
+	pthread_mutex_destroy(&temp->lock); //DESTROY
+	free(temp);
+
+	return true;
 }
 
 
 //Returns node of project when given project name to find
 ProjectNode* searchProjectNodePN(ProjectNode* head, char* proj_name){
+	ProjectNode* ptr = head;
+	while(ptr!=NULL){
+		if(strcmp(ptr->proj_name,proj_name)==0)
+			return ptr;
+		ptr = ptr->next;
+	}
 	return NULL;
 }
 
@@ -181,9 +237,25 @@ ProjectNode* searchProjectNodePN(ProjectNode* head, char* proj_name){
 Print Manifest Node
 **/
 void printManifestNode( ManifestNode* head ){
+	if(head==NULL){
+		printf("NULL\n");
+		return;
+	}
+
 	ManifestNode* ptr = head;
 	while(ptr!=NULL){
 		printf("mv:%-5d\tfv:%-5d\tfile: %10s\t\thash: %-20s\n", ptr->mver_num,  ptr->fver_num, ptr->file_name, ptr->hash);
+		ptr = ptr->next;
+	}
+}
+
+/**
+Print Project Node
+**/
+void printProjectNode( ManifestNode* head ){
+	ManifestNode* ptr = head;
+	while(ptr!=NULL){
+		printf("%-5s\n", ptr->file_name);
 		ptr = ptr->next;
 	}
 }

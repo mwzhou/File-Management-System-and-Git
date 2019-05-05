@@ -368,22 +368,6 @@ void addClient(char* proj_name, char* file_name){
 	fputs("\t1\t", fp);
 	fputs(hash_code, fp);
 	fputs("\n", fp);
-	/*int manifest_fd = open( manifest_path, O_WRONLY|O_APPEND, (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH) ); //writing in manifest file
-		if(manifest_fd < 0){ fprintf( stderr, "file:%s\n",file_name ); pRETURN_ERRORvoid("tried to open file flags: (O_WRONLY|O_APPEND)"); }
-
-	if(manifest_fd<0) { pRETURN_ERRORvoid("Error on opening file"); }
-	
-	//find path of file and generate hashcode for it	
-	char* new_path = combinedPath(proj_name, file_name);
-	char* hash_code = generateHash(new_path);
-
-	//Write info into manifet file for new file that is added	
-	WRITE_AND_CHECKv( manifest_fd, new_path, strlen(new_path));
-	WRITE_AND_CHECKv( manifest_fd, "\t", 1);
-	WRITE_AND_CHECKv( manifest_fd, "1", 1);
-	WRITE_AND_CHECKv( manifest_fd, "\t", 1);
-	WRITE_AND_CHECKv( manifest_fd, hash_code, strlen(hash_code));
-	WRITE_AND_CHECKv( manifest_fd, "\n", 1);*/
 	
 	//freeing and closing	
 	free(hash_code);
@@ -460,6 +444,10 @@ void historyClient(char* proj_name){
 	printf("%d] Entered command: history\n", sockfd);
 	sendArgsToServer("history", proj_name, NULL);
 
+	/*ERROR CHECK*/
+		//waiting for signal if valid project on server
+		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
+
 	return;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -474,6 +462,9 @@ void rollbackClient(char* proj_name, char* version){
 	/*ERROR check*/
 	//check version number
 	int v_num = atoi(version);
+	//waiting for signal if valid project on server
+	if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
+	//check for invaluid version number
 	if(  sendSig( sockfd, (v_num <= 0) ) == false ) pEXIT_ERROR("invalid version number");
 
 

@@ -104,6 +104,7 @@ void updateClient(char* proj_name){
 
 	/*recieve manifest files*/
 		//recieving manifest file from server
+			printf("\tRecieving Manifest file from Server\n");
 			char* store_manifest_serv_dir = concatString(proj_name, ".bak");  //make path to store manifest file recieved from Server
 			char* manifest_serv_path = recieveTarFile(sockfd, store_manifest_serv_dir);
 				free(store_manifest_serv_dir);
@@ -133,12 +134,17 @@ void updateClient(char* proj_name){
 	/*WRITE UPDATE FILE AND DO COMPARISONS*/
 	/*Comparisons - writes update file and makes comparisons with two manifest trees*/
 		printf("\n\tWill start writing .Update file: listing all updates...\n");
-		//write update file
+
+	//write update file
 		bool write_success = writeUpdateFile( clientLL , serverLL, update_fd );
 		if( write_success == false ){
 			REMOVE_AND_CHECK(update_path);
-			close( update_fd ); free(update_path);
-			pEXIT_ERROR("Update conflict!");
+			printf("\tUpdate conflict!\n");
+		}else{
+			if( sizeOfFile(update_path) == 0 ){
+				printf("\t\tCompletely up to date with Server. No updates neccessary\n");
+			}
+
 		}
 
 
@@ -171,23 +177,21 @@ bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head 
 		if(serv_cmpnode != NULL){
 			char* cptr_livehash = generateHash( cptr_file );
 				if( cptr_livehash == NULL ){ pRETURN_ERROR("generate live hash", false); }
-				
-			//COMPARISON
-			//if exactly the same
-				if( (serv_cmpnode->mver_num == client_ptr->mver_num) &&  (strcmp( cptr_livehash , serv_cmpnode->hash) == 0)  && (serv_cmpnode->fver_num == client_ptr->fver_num)  ){
-					client_ptr = client_ptr->next;
-					delManifestNode( &serverLL_head, cptr_file);
-					delManifestNode( &clientLL_head, cptr_file);
-					continue;
 
+			//COMPARISON
 			//same manifest version number, but different hashes from server and live
-				}else if( (serv_cmpnode->mver_num == client_ptr->mver_num) &&  (strcmp( cptr_livehash , serv_cmpnode->hash) != 0) ){
+				if( (serv_cmpnode->mver_num == client_ptr->mver_num) &&  (strcmp( cptr_livehash , serv_cmpnode->hash) != 0) ){
 					up_cmd = "U";
 
 			//diff manifest version number, diff file version number, same hash live hash and client
 				}else if ( (serv_cmpnode->mver_num != client_ptr->mver_num) &&  (strcmp( cptr_livehash , client_ptr->hash) == 0)  && (serv_cmpnode->fver_num != client_ptr->fver_num) ){
 				   	up_cmd = "M";
+
+				//if exactly the same
+				}else if( (serv_cmpnode->mver_num == client_ptr->mver_num) &&  (strcmp( cptr_livehash , serv_cmpnode->hash) == 0)  && (serv_cmpnode->fver_num == client_ptr->fver_num)  ){
+						up_cmd = "N";
 				}
+
 			//free
 			free(cptr_livehash);
 
@@ -202,11 +206,12 @@ bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head 
 				}
 		}
 
+
 		/*WRITING TO FILE*/
 		if(up_cmd == NULL){
 				printf("\t\tCONFLICT ERROR:\t%5s\n", cptr_file);
 				return false;
-		}else{
+		}else if( up_cmd[0]!= 'N'){
 			//write to file
 			WRITE_AND_CHECKb( update_fd, cptr_file , strlen(cptr_file) );
 			WRITE_AND_CHECKb( update_fd, "\t" , 1 );
@@ -373,30 +378,39 @@ void commitClient(char* proj_name){
 
 	//retrieve manifest from server
 		char* backup_proj = concatString( proj_name, ".bak" );
+		printf("\n\tRecieving Manifest file from Server...\n");
 		char* server_manifest = recieveTarFile( sockfd, backup_proj );
 			if( server_manifest == NULL ) pEXIT_ERROR("retireving server's Manifest");
 
 	/*Create Linked Lists for both Manifests*/
 		ManifestNode* clientLL = buildManifestLL( client_manifest );
 		ManifestNode* serverLL = buildManifestLL( server_manifest );
+
+		//check if manifest versions are the same
 		if( sendSig(sockfd, (clientLL->mver_num != serverLL->mver_num ) ) == false){
-			printf("Manifest Versions are different, waiting for user to update Manifest Version\n");
+			printf("\tManifest Versions are different, waiting for user to update Manifest Version\n");
 			return;
 		}
 
 		/*CREATING Commit file*/
 		char* commit_path = combinedPath(proj_name,".Commit");
-		FILE* commit_fd = fopen( proj_name, "w" );
+		FILE* commit_fd = fopen( commit_path , "w" );
 			if( commit_fd == NULL ) pEXIT_ERROR("open .Commit File");
 
 		/*WRITE COMMIT FILE*/
 		printf("\n\tWill start writing .Commit file: listing all commits...\n");
+
 		//if failed to write commit file
-		if( sendSig( sockfd, (writeCommitFile( clientLL, serverLL, commit_fd)) ) == false ){
+		if( sendSig( sockfd, (!writeCommitFile( clientLL, serverLL, commit_fd))) == false ){
 			REMOVE_AND_CHECK( commit_path );
 			printf("\tCOMMIT FAIL please resynch repository\n");
+		//success
 		}else{
-			//send to server
+			if( sizeOfFile(commit_path) == 0){
+				printf("\t\tNo commits to do, completely up to date with server!\n\n");
+			}
+			//send tar file to server
+			printf("\tSending Commit file to Server...\n");
 			if( sendTarFile( sockfd, commit_path, backup_proj) == false )
 				printf("\terror sending commit file\n");
 		}
@@ -427,28 +441,31 @@ bool writeCommitFile( ManifestNode* clientLL_head, ManifestNode* serverLL_head, 
 		//if hashes are different, increment the file version number
 		int cptr_newv_num = (strcmp( cptr_livehash, cptr->hash ) != 0) ? cptr->fver_num+1 : cptr->fver_num;
 
-
 		ManifestNode* found_servnode = searchManifestNode( serverLL_head, cptr_fname );
-		//in both .Manifests
+		//if new client is greater
 		if( found_servnode != NULL && (cptr_newv_num > found_servnode->fver_num) ){
 			commit_cmd = "U";
 		//in client's manifest but not in servers
-		}else{
+		}else if( found_servnode == NULL ){
 			commit_cmd = "A";
+		//in both .Manifests and exactly the same
+	}else if( found_servnode != NULL && (cptr_newv_num == found_servnode->fver_num) && (strcmp(cptr_livehash, found_servnode->hash)==0)){
+			commit_cmd = "N"; //ignore
 		}
 
-		/*WRITING TO FILE*/
+
+		/*OUTPUT*/
 		if( commit_cmd == NULL){
 			printf("\t\tCONFLICT ERROR:\t%5s\n", cptr_fname);
 			return false;
-		}else{
-			//write to file
-			fprintf( commit_fd , "%s\t%s\t%d\n" , cptr_fname, commit_cmd, cptr_newv_num);
-			printf("\t\tCommit Command:%-5s\tFile:%-5s\n", cptr_fname, commit_cmd );
+		}else if( commit_cmd[0] != 'N'){
+			fprintf( commit_fd , "%s\t%s\t%d\t%s\n" , cptr_fname, commit_cmd, cptr_newv_num, cptr_livehash);
+			printf("\t\tCommit Command:%-5s\tFile:%-5s\n", commit_cmd, cptr_fname);
 		}
 
 		//UPDATE client ptr
 		cptr = cptr-> next;
+		free(cptr_livehash);
 
 		//DELETE entry from both lists
 		if(found_servnode != NULL) delManifestNode( &serverLL_head, cptr_fname);
@@ -463,7 +480,7 @@ bool writeCommitFile( ManifestNode* clientLL_head, ManifestNode* serverLL_head, 
 		char* sptr_fname = sptr->file_name;
 		//write
 		fprintf( commit_fd , "%s\tR\t%d\n" , sptr_fname, sptr->fver_num );
-
+		printf("\t\tCommit Command:%-5s\tFile:%-5s\n", "R", sptr_fname);
 		//update
 		sptr = sptr->next;
 
@@ -510,8 +527,6 @@ void createClient(char* proj_name){
 	/*recieving manifest file*/
 	char* manifest_path = recieveTarFile( sockfd, proj_name );
 		if(manifest_path == NULL){ pEXIT_ERROR("recieving .Manifest file from Server"); }
-
-	//TODO:...
 
 	//free and return
 	printf("\n\tSuccessfully created project: %s on Client side!\n", proj_name);
@@ -690,6 +705,27 @@ void historyClient(char* proj_name){
 	printf("%d] Entered command: history\n", sockfd);
 	sendArgsToServer("history", proj_name, NULL);
 
+	/*ERROR CHECK*/
+		//waiting for signal if valid project on server
+		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on server");
+		if( receiveSig(sockfd) == false) pEXIT_ERROR(".History file doesn't exist on server");
+
+	/*Recieving History file from Server*/
+		printf("\tRecieving History file from Client...\n");
+		char* backup_proj = concatString( proj_name, ".bak" );
+		char* history_path = recieveTarFile( sockfd, backup_proj );
+			if( history_path == NULL ){ free(backup_proj); free(history_path); pEXIT_ERROR("recieving History Tar file"); }
+		printf("\tSuccessfully recieved file from Client...\n");
+
+		char* hist_str = readFile( history_path );
+			if( hist_str == NULL ){ pEXIT_ERROR("reading History file"); }
+
+		//output history file
+		printf("\n%s\n", hist_str );
+
+	free(hist_str);
+	free(backup_proj);
+	free(history_path);
 	return;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -702,9 +738,13 @@ void rollbackClient(char* proj_name, char* version){
 	sendArgsToServer("rollback", proj_name, version);
 
 	/*ERROR check*/
-	//check version number
-	int v_num = atoi(version);
-	if(  sendSig( sockfd, (v_num <= 0) ) == false ) pEXIT_ERROR("invalid version number");
+		//check if project exists on server
+		if( receiveSig(sockfd) == false) pEXIT_ERROR("project doesn't exist on Server");
+		//check version number
+		int v_num = atoi(version);
+		if(  sendSig( sockfd, (v_num <= 0) ) == false ) pEXIT_ERROR("invalid version number");
+
+	//TODO
 
 
 	return;

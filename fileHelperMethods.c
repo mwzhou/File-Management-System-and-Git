@@ -517,7 +517,7 @@ char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
 		int len;
 		char buffer[1024];
 		int remain_data = file_size;
-		while ( (remain_data > 0) && ((len = recv(sockfd, buffer, 1024, 0)) > 0) ){
+		while ( (remain_data > 0)  && ((len = recv(sockfd, buffer, 1024, 0)) > 0) ){
 						 fwrite(buffer, 1, len, received_file);
 						 remain_data -= len;
 		}

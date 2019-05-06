@@ -18,6 +18,8 @@
 
 
 int main(int argc, char * argv[]){
+	//printf("%s\n", readFile("./r1/.Commit"));
+	//printf("%d\t%d\n", typeOfFile("./trial"), typeOfFile("misc") );
 
 	char* buffer2 = "Asst1/mymalloc.c	U	1	c5b06b94a970266c97c21bcbda719b3274ba4a86cce787ce8be9ea5dcc7bb2e1\n";
 	char* buffer = "Asst1/mymalloc.c	1	c5b06b94a970266c97c21bcbda719b3274ba4a86cce787ce8be9ea5dcc7bb2e1\n";
@@ -91,6 +93,6 @@ int main(int argc, char * argv[]){
 		free(fileNameMan);
 	//}
 
-	return 0;
 
+	return 0;
 }

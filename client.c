@@ -397,17 +397,20 @@ void commitClient(char* proj_name){
 		printf("\n\tRecieving Manifest file from Server...\n");
 		char* server_manifest = recieveTarFile( sockfd, backup_proj );
 			if( server_manifest == NULL ) pEXIT_ERROR("retireving server's Manifest");
+		printf("\tSuccesfully recieved Manifest file from Server!\n");
 
 	/*Create Linked Lists for both Manifests*/
 		ManifestNode* clientLL = buildManifestLL( client_manifest );
 			if( clientLL == NULL ){ pEXIT_ERROR("building Client Manifest LL");  }
+			int client_mver = clientLL->mver_num;
 			delLLIfEmpty( &clientLL );
 		ManifestNode* serverLL = buildManifestLL( server_manifest );
 			if( serverLL == NULL ){ pEXIT_ERROR("building Server Manifest LL"); }
+			int server_mver = serverLL->mver_num;
 			delLLIfEmpty( &serverLL );
 
 		//check if manifest versions are the same
-		if( sendSig(sockfd, (clientLL->mver_num != serverLL->mver_num ) ) == false){
+		if( sendSig(sockfd, (client_mver!=server_mver) ) == false){
 			printf("\tManifest Versions are different, waiting for user to update Manifest Version\n");
 			return;
 		}
@@ -455,6 +458,13 @@ void commitClient(char* proj_name){
 Check Commit Validity
 **/
 bool writeCommitFile( ManifestNode* clientLL_head, ManifestNode* serverLL_head, FILE* commit_fd, bool* wasChanged ){
+	//if empty
+	if( clientLL_head == NULL && serverLL_head == NULL ){
+		printf("\t\tBoth Manifest Files are empty\n");
+		return true;
+	}
+
+
 	char* commit_cmd = NULL;
 
 	/*Compare Client to Server*/
@@ -929,13 +939,13 @@ int main(int argc, char** argv){
 
 	//[3.8] add
 	}else if (strcmp(command,"add")==0){
-		if(argc!=4) { sendErrorSocket(sockfd); pEXIT_ERROR("destroy must be followed by 2 arguments: project name and file name"); }
+		if(argc!=4) { pEXIT_ERROR("destroy must be followed by 2 arguments: project name and file name"); }
 		addClient(argv[2], argv[3]);
 		return 0;
 
 	//[3.9] remove
 	}else if (strcmp(command,"remove")==0){
-		if(argc!=4) { sendErrorSocket(sockfd); pEXIT_ERROR("remove must be followed by 2 arguments: project name and file name"); }
+		if(argc!=4) { pEXIT_ERROR("remove must be followed by 2 arguments: project name and file name"); }
 		removeClient(argv[2], argv[3]);
 		return 0;
 	}

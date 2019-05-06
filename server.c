@@ -559,12 +559,12 @@ void createServer(  int sockfd, char* proj_name ){
 		if( receiveSig(sockfd) == false ) pRETURN_ERRORvoid("project already exists on Client");
 
 	/*make directory*/
-	if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0){ pRETURN_ERRORvoid("mkdir()"); }
+		if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0){ pRETURN_ERRORvoid("mkdir()"); }
 
 	/*make .Manifest File*/
 	char* manifest_path = combinedPath(proj_name, ".Manifest");
 	FILE* manifest_fd = fopen( manifest_path, "w" );
-		if( manifest_fd == NULL ){ free(manifest_path); pRETURN_ERRORvoid("open"); }
+		if( manifest_fd == NULL ){ removeDir(proj_name); free(manifest_path); pRETURN_ERRORvoid("open"); }
 	//write to file project v_num and manifest v_num
 	fprintf(manifest_fd, "1\n1\n");
 	fclose(manifest_fd);
@@ -572,7 +572,7 @@ void createServer(  int sockfd, char* proj_name ){
 	/*make .History File*/
 	char* history_path = combinedPath(proj_name, ".History");
 	FILE* history_fd = fopen( history_path, "w" );
-		if( history_fd == NULL ){ free(manifest_path); pRETURN_ERRORvoid("open"); }
+		if( history_fd == NULL ){ free(manifest_path); removeDir(proj_name); pRETURN_ERRORvoid("open"); }
 	free(history_path);
 	fclose(history_fd);
 
@@ -584,7 +584,7 @@ void createServer(  int sockfd, char* proj_name ){
 	}
 
 	/*send Manifest file to client*/
-	if( sendTarFile( sockfd, manifest_path, backup_proj_dir ) == false ){ free(backup_proj_dir); free(manifest_path); pRETURN_ERRORvoid("sending .Manifest file to client"); }
+	if( sendTarFile( sockfd, manifest_path, backup_proj_dir ) == false ){ removeDir(proj_name); removeDir(backup_proj_dir); free(backup_proj_dir); free(manifest_path); pRETURN_ERRORvoid("sending .Manifest file to client"); }
 
 	/*Add project to global linked list*/
 	addProjectNode( proj_name );

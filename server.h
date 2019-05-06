@@ -23,4 +23,7 @@
 	bool replaceManifestOnPush( char* proj_name, char* dir_of_files );
 	bool writeToHistory( char* proj_name , char* commit_client_path, FILE* history_fd);
 
+bool storeCurrentVersion(char* proj_name, char* manifest_path, char* bakup_proj);
+bool replaceManifestOnPush( char* proj_name, char* dir_of_files , char* commit_file);
+
 #endif

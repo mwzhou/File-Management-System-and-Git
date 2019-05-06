@@ -159,7 +159,7 @@ bool addProjectNodePN( ProjectNode** head_addr, char* proj_name){
 
 	/*Create Node to_add*/
 	ProjectNode* to_add = (ProjectNode*)malloc(sizeof(ProjectNode));
-		to_add -> proj_name = proj_name;
+		to_add -> project_name = proj_name;
 		//initialize lock
 		pthread_mutex_t lock;
 		pthread_mutex_init( &lock, NULL);
@@ -189,7 +189,7 @@ bool delProjectNodePN(ProjectNode** head_addr, char* proj_name){
 	//search for string and get node
 	int cmp = -1;
 	while( ptr!=NULL ){
-		if( (cmp = strcmp(ptr->proj_name,proj_name)) == 0 )break;
+		if( (cmp = strcmp(ptr->project_name,proj_name)) == 0 )break;
 		prev = ptr;
 		ptr = ptr->next;
 	}
@@ -211,7 +211,7 @@ bool delProjectNodePN(ProjectNode** head_addr, char* proj_name){
 	}
 
 	//free and close mutex
-	free(temp->proj_name);
+	free(temp->project_name);
 	pthread_mutex_destroy(&temp->lock); //DESTROY
 	free(temp);
 
@@ -223,7 +223,7 @@ bool delProjectNodePN(ProjectNode** head_addr, char* proj_name){
 ProjectNode* searchProjectNodePN(ProjectNode* head, char* proj_name){
 	ProjectNode* ptr = head;
 	while(ptr!=NULL){
-		if(strcmp(ptr->proj_name,proj_name)==0)
+		if(strcmp(ptr->project_name,proj_name)==0)
 			return ptr;
 		ptr = ptr->next;
 	}
@@ -251,10 +251,10 @@ void printManifestNode( ManifestNode* head ){
 /**
 Print Project Node
 **/
-void printProjectNode( ManifestNode* head ){
-	ManifestNode* ptr = head;
+void printProjectNode( ProjectNode* head ){
+	ProjectNode* ptr = head;
 	while(ptr!=NULL){
-		printf("%-5s\n", ptr->file_name);
+		printf("%s\n", ptr->project_name);
 		ptr = ptr->next;
 	}
 }

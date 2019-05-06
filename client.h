@@ -18,7 +18,7 @@
 
 bool removeFromManifest(char* file_path, char* proj_name);
 void sendArgsToServer(char* s1, char* s2, char* s3);
-bool writeUpdateFile( ManifestNode* clientLL_head , ManifestNode* serverLL_head , FILE* update_fd, bool* wasUpdated );
-bool writeCommitFile( ManifestNode* clientLL_head, ManifestNode* serverLL_head, FILE* commit_fd, bool* wasChanged );
+bool writeUpdateFile( ManifestNode* clientm_tree, ManifestNode* serverm_tree, int update_fd );
+bool writeCommitFile( ManifestNode* clientLL_head, ManifestNode* serverLL_head, FILE* commit_fd );
 
 #endif

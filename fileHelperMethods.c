@@ -55,7 +55,7 @@ int sizeOfFile(char* file_name){
 	int file = open(file_name, O_RDONLY);
 		if( file < 0 ){ fprintf( stderr, "file_name: %s\n",file_name); close(file); pRETURN_ERROR("error opening file (O_RDONLY)", -1); }
 
-	int file_len = (int)lseek( file, 0, SEEK_END ); //gets file size in bytes by going to end of file_cpy
+	int file_len = (int)lseek( file , 0, SEEK_END ); //gets file size in bytes by going to end of file_cpy
 		if ( file_len < 0 ){ close(file); pRETURN_ERROR("error getting file length with lseek()", -1); }//checking if file_len is a valid length
 
 	close(file);
@@ -165,10 +165,10 @@ removes directory
 **/
 bool removeDir( char* dir ){
 	//ex] rm -r dir
-	int cmd_len = strlen(dir) + strlen("rm -rf ") + 1;
+	int cmd_len = strlen(dir) + strlen("rm -r ") + 1;
 	char* sys_cmd = (char*)malloc(cmd_len);
 		//cpy info
-		strcpy( sys_cmd, "rm -rf ");
+		strcpy( sys_cmd, "rm -r ");
 		strcat( sys_cmd, dir);
 
 		//run cmd
@@ -198,93 +198,10 @@ bool copyDir(char* proj_name, char* copyPath){
 }
 
 
-/**
-Check if files are equal
-**/
-bool fileEquals(char* f1_name, char* f2_path){
-	char* s1 = readFile( f1_name );
-		if( s1 == NULL ){ pRETURN_ERROR("reading", false); }
-	char* s2 = readFile( f2_path );
-		if( s2 == NULL ){ pRETURN_ERROR("reading", false); }
-
-	//return if equal or not
-	bool match = ( strcmp(s1,s2) == 0 );
-	free(s1);
-	free(s2);
-	return match;
-}
-
-
-/**
-returns number of files in a directory
-**/
-int numFilesInDir( char* dir_name ){
-	int count = 0;
-
-	struct dirent *dp;
-  DIR *fd;
-  if ((fd = opendir(dir_name)) == NULL) { pRETURN_ERROR("open directory", -1); }
-
-  while ((dp = readdir(fd)) != NULL) {
-	  if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, ".."))
-	    continue;
-
-	  count++;
-  }
-
-  closedir(fd);
-	return count;
-}
-
-
-/**
-find file match in directory
-if match, store the match in a string and delete all other files
-if no match - return NULL
-**/
-char* findFileMatchInDir( char* dir_name, char* f_compare ){
-	char* matched_fpath = NULL;
-	struct dirent *de;
- 	DIR *dr = opendir(dir_name);
- 		if (dr == NULL){ pRETURN_ERROR("open directory", NULL); }
- 	while ((de = readdir(dr)) != NULL){
-		if( strcmp(de->d_name, ".")==0 || strcmp(de->d_name, "..")==0  ) continue;
-
-		char* new_path = combinedPath(dir_name, de->d_name);
-		if( fileEquals( new_path, f_compare ) == true){
-			matched_fpath = new_path;
-		}else{
-			free(new_path);
-		}
-	}
- 	closedir(dr);
-
-	//if found match - delete all other files
-	if( matched_fpath!=NULL ){
-		struct dirent *de_del;
-	 	DIR *dr_del = opendir(dir_name);
-	 		if (dr_del == NULL){ pRETURN_ERROR("open directory", NULL); }
-	 	while ((de_del = readdir(dr_del)) != NULL){
-			if( strcmp(de_del->d_name, ".")==0 || strcmp(de_del->d_name, "..")==0  ) continue;
-
-			char* new_del_path = combinedPath(dir_name, de_del->d_name);
-			if( strcmp(new_del_path, matched_fpath) != 0){
-				remove(new_del_path);
-			}
-			free(new_del_path);
-		}
-
-	 	closedir(dr_del);
-	}
-
-	return matched_fpath;
-}
-
-
-
 //STRING MANIPULATION methods/////////////////////////////////////////////////////////////////////
 
 /**
+To be used in fileCompressor.c for decompress.
 returns a subtring of s from the start_index to start_index+length of substring
 returns NULL if start_ind+length-1 > strlen(s) or could not get a substring
 **/
@@ -538,30 +455,6 @@ char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
 }
 
 
-//WTF methods///////////////////////////////////////////////////////////////////////
-
-/**
-Get project version number through manifest
-**/
-int getProjectVersion( char* proj_name ){
-	char* manifest_path = combinedPath( proj_name, ".Manifest" );
-	char* manifest_str = readFile( manifest_path );
-		if( manifest_str == NULL ){ free(manifest_path); pRETURN_ERROR("reading manifest", -1); }
-
-	//Tokenize to retrive project version number
-	char* tok = strtok(manifest_str, "\n"); //manifest_version : skip
-	tok = strtok( NULL, "\n" ); //project version number!
-
-	int ret = atoi(tok);
-		if( ret<=0 ){ pRETURN_ERROR("not a valid proj ver num", -1); }
-
-	free(manifest_path);
-	free(manifest_str);
-	return ret;
-}
-
-
-
 
 //Tar Methods///////////////////////////////////////////////////////////////////////
 
@@ -699,6 +592,7 @@ char* makeTar(char* file_path, char* dir_to_store){
 
 			//free
 			free( sys_cmd );
+
 
 //change back to root directory
 	if( chdir(root_dir) < 0 ){ free( root_dir ); pRETURN_ERROR("changing root directory", NULL); }

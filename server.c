@@ -68,13 +68,9 @@ void* worker_thread_func(void* arg){
 //[3.1] CHECKOUT////////////////////////////////////////////////////////////////////////
 
 void checkoutServer( int sockfd, char* proj_name ){
-
-	printProjectNode(head);
 	
-	ProjectNode* ptr = searchProjectNode(proj_name);
-	if(ptr==NULL){pRETURN_ERRORvoid("Failed!");}
-	printf("%s\n",(ptr->project_name));
-	//pthread_mutex_lock(&(ptr->lock));
+	ProjectNode* ptr = searchProjectNodePN(head, proj_name);
+	pthread_mutex_lock(&(ptr->lock));
 	
 	printf("\nEntered command: checkout\n");
 	
@@ -82,20 +78,20 @@ void checkoutServer( int sockfd, char* proj_name ){
 		//check if proj exists on Server - send message to client
 		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on Server");
 		//waiting for Client to see if project exists
+		TESTP;
 		if( receiveSig( sockfd ) == false ) pRETURN_ERRORvoid("Project already exists on Client");
 
-	//ProjectNode* ptr = searchProjectNode(proj_name);
-	//printf("%s\n",(ptr->project_name));
+	//TESTP;
 
 	/**SEND project over to client**/
 		//get backup folder_dir
-		char* backup_proj_path = concatString( proj_name, ".bak" );
+		char* bakup_proj_path = concatString( proj_name, ".bak" );
 
-		if ( sendTarFile(sockfd, proj_name, backup_proj_path) == false){ pRETURN_ERRORvoid("error sending .Manifest file"); }
-			free(backup_proj_path);
+		if ( sendTarFile(sockfd, proj_name, bakup_proj_path) == false){ pRETURN_ERRORvoid("error sending .Manifest file"); }
+			free(bakup_proj_path);
 
-	//pthread_mutex_unlock(&(ptr->lock));
-	//pthread_exit(NULL);
+	pthread_mutex_unlock(&(ptr->lock));
+	pthread_exit(NULL);
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -116,11 +112,11 @@ void updateServer(  int sockfd, char* proj_name  ){
 
 
 	/*SEND manifest file to client*/
-		char* backup_proj = concatString( proj_name, ".bak" );
+		char* bakup_proj = concatString( proj_name, ".bak" );
 		//send
-		if ( sendTarFile(sockfd, manifest_path, backup_proj) == false){ free(manifest_path); free(backup_proj); pRETURN_ERRORvoid("error sending .Manifest file"); }
+		if ( sendTarFile(sockfd, manifest_path, bakup_proj) == false){ free(manifest_path); free(bakup_proj); pRETURN_ERRORvoid("error sending .Manifest file"); }
 			free(manifest_path);
-			free(backup_proj);
+			free(bakup_proj);
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -171,36 +167,12 @@ void commitServer( int sockfd, char* proj_name ){
 		}
 
 	//check if write was successful
-		//if not successful
 		if( receiveSig( sockfd ) == false){
 			printf("\n\tError on Client side committing\n");
-
-		//if successfulcommitClie
 		}else{
-			//Check for commit directory
-				char* commit_dir = combinedPath(proj_name, ".Commit");
-				//if it doesn't exist, make directory
-				if( typeOfFile(commit_dir) != isDIR ){
-					if( mkdir( commit_dir , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0){ free(commit_dir); pRETURN_ERRORvoid("mkdir()"); }
-				}
-
-			//get Commit file
-				printf("\n\tCommit created successfully! Recieving Commit over from Client...\n");
-				char* commit_file =  recieveTarFile( sockfd, commit_dir );
-				printf("\tSuccessfully retrieved .Commit file!\n");
-
-			//rename commit_file with number
-				//get num of existing commits
-				int num_commits = numFilesInDir( commit_dir );
-				char new_num[5]; new_num[4] = '\0';
-				sprintf(new_num, "%d", num_commits+1);
-				printf("\tnumber current pending commits: %d\n", num_commits); //TODO
-				//rename
-				char* new_commit_name = concatString(commit_file, new_num );
-				rename( commit_file,  new_commit_name );
-
-
-			free( new_commit_name );
+			printf("\n\tCommit created successfully! Recieving Commit over from Client...\n");
+			char* commit_file =  recieveTarFile( sockfd, proj_name );
+			printf("\tSuccessfully retrieved .Commit file!\n");
 			free(commit_file);
 		}
 
@@ -216,148 +188,59 @@ void pushServer(  int sockfd, char* proj_name  ){
 	/*ERROR CHECK*/
 		//check if project name doesn't exist on Server
 		if( sendSig(sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false ) pRETURN_ERRORvoid("project doesn't exist on server");
-		//check if no commits exist on Server
-		char* serv_commit_dir = combinedPath(proj_name, ".Commit");
-		if( sendSig(sockfd, ( typeOfFile(serv_commit_dir) != isDIR ) ) == false ){ free(serv_commit_dir);  pRETURN_ERRORvoid(".Commit file doesn't exist in project on server"); }
+		//check if manifest doesn't on Server
+		char* commit_server_path = combinedPath( proj_name, ".Commit"); //get path of manifest
+		if( sendSig(sockfd, ( typeOfFile(commit_server_path) != isREG ) ) == false ){ free(commit_server_path);  pRETURN_ERRORvoid(".Commit file doesn't exist in project on server"); }
 		//if file was modified on client side
-		if( receiveSig(sockfd) == false ) { pRETURN_ERRORvoid("A file was modified since the last upgrade on the client side");}
+		if( receiveSig(sockfd) == false ) {free(commit_server_path); pRETURN_ERRORvoid("A file was modified since the last upgrade on the client side");}
 
 
 	//TODO lock the repository
 
+	//recieving files send from client	
+	char* bakup_proj = concatString( proj_name, ".bak" );
+	char* dir_of_files = recieveTarFile( sockfd, bakup_proj );
+		if(dir_of_files == NULL){ pRETURN_ERRORvoid("recieveTarFile failed"); }
 
-	/*recieve files send from client*/
-		printf("\tRecieving commit files for push from Client...\n");
-		char* backup_proj = concatString( proj_name, ".bak" );
-		char* cinital_data = recieveTarFile( sockfd, backup_proj );
-			if( cinital_data  == NULL){
-				free(backup_proj); free(serv_commit_dir);
-				pRETURN_ERRORvoid("recieveTarFile failed");
-			}
-		printf("\tRecieved commit files from Client successfully\n");
-	//make directory to store cinitial data in
-		char* client_files = combinedPath( backup_proj, "Client_backup");
-		if( typeOfFile(client_files) != isUNDEF ) removeDir(client_files);
-		//make dir
-		if( mkdir( client_files , (S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ) < 0  ){
-			free(backup_proj); free(cinital_data); free(client_files); free(serv_commit_dir);
-			pRETURN_ERRORvoid("mkdir()");
-		}
-		moveFile( cinital_data, client_files );
-		free(cinital_data);
+	//get client commit file:
+	char* commit_client_path = combinedPath(dir_of_files,".Commit");
 
-	//find necessary files from Commit
-		char* commit_projp = combinedPath( client_files, proj_name ); //dir
-		char* commit_client_path = combinedPath( commit_projp  ,".Commit");
-		char* manifest_client_path = combinedPath( commit_projp  ,".Manifest");
+	//ERROR CHECK: if client Commit does not match server commit
+	char* commitServer = readFile(commit_server_path);
+	char* commitClient = readFile(commit_client_path);
+	if( sendSig(sockfd, ( strcmp(commitClient, commitServer)!=0 ) ) == false ){ 
+		//delete files sent to server from client
+		bool delete_client_files = removeDir(dir_of_files);
+		if(delete_client_files==false){pRETURN_ERRORvoid("Removing directory failed");}
+		free(commitClient); 
+		free(commit_server_path); 
+		free(bakup_proj); 
+		free(dir_of_files); 
+		free(commitServer); 
+		pRETURN_ERRORvoid(".Commit of client and server are different!");
+	}
+	free(commitClient); 
+	free(commitServer);
+	//TODO expire All other commits from other cliets if commit files are the same
 
-		/*Get Commit File from server*/
-		//find matching server commit file:
-		char* commit_server_path = findFileMatchInDir( serv_commit_dir , commit_client_path ); //Note: deletes all other commits if found match
-			free(serv_commit_dir);
-			//if matching Commit file is not found
-			if( sendSig(sockfd, ( commit_server_path == NULL ) ) == false ){
-				removeDir(client_files);
-				free(commit_client_path); free(manifest_client_path); free(commit_projp); free(commit_server_path); free(client_files); free(backup_proj);
-				pRETURN_ERRORvoid("no matching commit on Server");
-			}
-			free(commit_server_path);
-
-	/*Get server's current project version and store in backup directory*/
-		if( storeCurrentVersion(proj_name, backup_proj) == false ){
-			removeDir(client_files);
-			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files); free(backup_proj);
-			pRETURN_ERRORvoid("storing backup");
-		}
+	char* manifest_path = combinedPath(proj_name, ".Manifest");
+	//Get server's current project version to copy and rename project.
+	bool store = storeCurrentVersion(proj_name, manifest_path, bakup_proj);
+	if (!store){pRETURN_ERRORvoid("Saving version failed");}
 
 
-	/*Update Server repository*/
-		//did not push, empty commit file
-		if( sizeOfFile(commit_client_path) == 0 ){
-			removeDir(client_files);
-			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files); free(backup_proj);
-			printf("Server is up to date, commit is empty!\n");
-			return;
+	//TODO UMAD
 
-		//perform UMAD
-		}else if( updateServerOnPush( proj_name, client_files ,commit_client_path ) == false ){
-			removeDir(client_files);
-			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files); free(backup_proj);
-			pRETURN_ERRORvoid("push failed");
-		}
-
-
-	//TODO: replaces Server's Manifest and sends to Client
-	
-		//TODO (proj_name, directory in which )
-
-		//TODO: enter command here
-
-		//free
-		free(commit_projp);
-		free(client_files);
-		free(backup_proj);
-
-
-
-	//write to HISTORY file
-		char* serv_history_path = combinedPath(proj_name, ".History");
-		FILE* history_fd = fopen( serv_history_path, "w" );
-			if( history_fd == NULL ){ pRETURN_ERRORvoid("Server project must have a .History file"); }
-		//write commits
-		if( writeToHistory( proj_name , commit_client_path , history_fd) == false ){
-			PRINT_ERROR("error writint history");
-		}
+	//replaceManifestOnPush(proj_name, dir_of_files);
 
 	//Removing and Freeing
-		//remove commit directory
-		removeDir(client_files);
-		free(commit_client_path);
-		free(manifest_client_path);
-
+	bool delete_client_files = removeDir(dir_of_files);
+	if(delete_client_files==false){pRETURN_ERRORvoid("Removing directory failed");}
+	free(manifest_path);
+	free(commit_client_path);
+	free(commit_server_path);
+	free(bakup_proj);
 }
-
-
-/**
-Writes to History file after a successful push
-**/
-bool writeToHistory( char* proj_name , char* commit_client_path, FILE* history_fd){
-	int proj_vnum = getProjectVersion(proj_name);
-		if( proj_vnum < 0 ) return false;
-
-	char* commit_file = readFile(commit_client_path);
-		if(commit_file == NULL ) return false;
-
-	//write new line and history
-	fprintf( history_fd, "\nPUSH: project version %d\n", proj_vnum );
-
-	char* tok = strtok( commit_file, "\n\t");
-	do{
-	//get file
-		char* curr_fname = tok;
-		printf("%s\n", tok);
-	//get commit command
-		tok = strtok(NULL, "\n\t");
-		char* commit_cmd = tok;
-			if( strlen(commit_cmd)!= 1 ){ pRETURN_ERROR("Invalid Commit file passed", false); } // check strlen
-
-	//write
-		fprintf( history_fd, "%s\t%s\n", curr_fname, commit_cmd);
-
-	//go to next new line by ignoring
-		tok = strtok(NULL, "\n\t");
-		tok = strtok(NULL, "\n\t");
-	}while( (tok = strtok(NULL, "\n\t")) != NULL );
-
-
-	free( commit_file );
-	return true;
-}
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////
 
 /**
@@ -447,7 +330,6 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
 
 	char* toUpdate = readFile(tempOfCom);
 
-	//continue to go through client's manifest path and write into file to replace the manifest	
 	while((fgets(buffer, lineSize, cmP) )!=NULL){
 	
 		//find file name
@@ -488,7 +370,7 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
     //free and return
         free(manifest_client_path);
         free(temp_path);
-	fclose(tempFile);
+        fclose(tempFile);
 	remove(tempOfCom);
 	free(tempOfCom);
 	free(bakup);
@@ -498,15 +380,9 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
 }
 
 
-/**
-Stores current version of project in backup
-**/
-bool storeCurrentVersion(char* proj_name, char* bakup_proj){
 
-  	char* manifest_path = combinedPath(proj_name, ".Manifest"); 
- 
+bool storeCurrentVersion(char* proj_name, char* manifest_path, char* bakup_proj){
 	FILE* mP = fopen(manifest_path,"r");
-		if( mP == NULL ){ free(manifest_path); pRETURN_ERROR("Manifest doesn't exist on Server", false); }
 	int count = 0;
 	char* og_pNum;
 	int lineSize = 1024;
@@ -521,6 +397,7 @@ bool storeCurrentVersion(char* proj_name, char* bakup_proj){
 		}
 	}
 	//go back to beginning of file and close
+	rewind(mP);
 	fclose(mP);
 
 	//creat bakup version
@@ -529,7 +406,6 @@ bool storeCurrentVersion(char* proj_name, char* bakup_proj){
 
 	//copy backup version into into directory and rename
 	bool s = copyDir(proj_name, bakup_proj);
-
 	if(s==false){pRETURN_ERROR("copying failed",false);}
 	rename(name_will_be, copyPath);
 
@@ -540,68 +416,8 @@ bool storeCurrentVersion(char* proj_name, char* bakup_proj){
 
 	free(og_pNum);
 	free(copyPath);
-	free( manifest_path );
+
 	return true;
-}
-
-
-/**
-Performs correct operation for push
-**/
-bool updateServerOnPush( char* proj_name, char* client_files, char* commitf_name ){
-
-	/*PARSE THROUGH FILE*/
-		char* commit_file = readFile( commitf_name );
-			if( commit_file == NULL ){ pRETURN_ERROR("reading commit file", false); }
-
-		char* tok = strtok( commit_file, "\n\t");
-		do{
-		//get file
-			char* curr_fname = tok;
-			printf("%s\n", tok);
-
-		//get commit command
-			tok = strtok(NULL, "\n\t");
-			char* commit_cmd = tok;
-				if( strlen(commit_cmd)!= 1 ){ pRETURN_ERROR("Invalid Commit file passed", false); } // check strlen
-
-		//go to next new line by ignoring
-			tok = strtok(NULL, "\n\t");
-			tok = strtok(NULL, "\n\t");
-		//perform operations based on command
-			switch( commit_cmd[0] ){
-				case 'U':
-				case 'A':{ //replace
-					//get client version
-					char* fclient_version = combinedPath(client_files, curr_fname);
-					//get directory to store
-					int ind_slash = lengthBeforeLastOccChar( curr_fname, '/');
-					char* dir_to_store = substr(curr_fname, 0, ind_slash+1);
-
-					//REPLACE FILE
-					if( moveFile( fclient_version , dir_to_store) == false){
-						free(fclient_version); free(dir_to_store);
-						printf("\t\tFILE: %s CMD: %s\n", curr_fname, commit_cmd);
-						pRETURN_ERROR("move or add", false);
-					}
-
-					free(fclient_version);
-					free(dir_to_store);
-					break;
-				}case 'D':
-					//REMOVE FILE
-					if( remove(curr_fname) < 0){
-						printf("\t\tFILE: %s CMD: %s\n", curr_fname, commit_cmd);
-						pRETURN_ERROR("attempt to remove file", false);
-					}
-					break;
-				default:
-					pRETURN_ERROR("Invalid Update file", false);
-			}
-
-		//printf("FILE %s CMD %s\n\n", curr_fname, commit_cmd);
-		}while( (tok = strtok(NULL, "\n\t")) != NULL );
-		return true;
 }
 
 
@@ -612,7 +428,7 @@ void createServer(  int sockfd, char* proj_name ){
 	if( typeOfFile(proj_name)==isDIR ){ sendErrorSocket(sockfd); pRETURN_ERRORvoid("project already exists on server"); }
 
 	/*make directory*/
-	if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0){ pRETURN_ERRORvoid("mkdir()"); }
+	if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){ pRETURN_ERRORvoid("mkdir()"); }
 
 	/*make .Manifest File*/
 	char* manifest_path = combinedPath(proj_name, ".Manifest");
@@ -631,7 +447,7 @@ void createServer(  int sockfd, char* proj_name ){
 
 	/*make backup directory*/
 	char* backup_proj_dir = concatString(proj_name, ".bak");
-	if( mkdir( backup_proj_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0){
+	if( mkdir( backup_proj_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) ){
 		free(backup_proj_dir); free(manifest_path);
 		pRETURN_ERRORvoid("mkdir()");
 	}
@@ -800,6 +616,7 @@ void* connect_client( void* curr_clientthread ){
 		free( arguments );
 
 
+
 	//The following if statements call methods based on the request sent from the client
 	if(strcmp(command,"checkout")==0)
 		checkoutServer(sockfd, proj_name);
@@ -832,6 +649,7 @@ void* connect_client( void* curr_clientthread ){
 		rollbackServer(sockfd, proj_name, s3);
 
 	else
+
 		printf("\tError on client side argument\n");
 
 	/*EXITING CLIENT*/
@@ -920,6 +738,8 @@ int main(int argc, char * argv[]){
 	}
 
 
+
+
 	//ACCEPT connecting and accepting message for client
 	int curr_socket;
 	while( (curr_socket= accept(overall_socket, (struct sockaddr*) &address, (socklen_t*)&addrlen)) > 0 ){
@@ -940,6 +760,8 @@ int main(int argc, char * argv[]){
 	//if accept failed
 	if(curr_socket<0){ pRETURN_ERROR("Connection to client failed",-1); }
 
+	if(close(overall_socket) < 0) pRETURN_ERROR("Error on Close",-1);
+
 
 
 	printf("Main thread Broke out of while accept loop\n");
@@ -958,7 +780,7 @@ int main(int argc, char * argv[]){
 	pthread_cancel(manager_thread);
 	pthread_join(manager_thread, NULL);
 	printf("cleaned up manager thread\n");
-	if(close(overall_socket) < 0) pRETURN_ERROR("Error on Close",-1);
+	close(overall_socket);
 
 	return 0;	//initialize overall_socket
 }

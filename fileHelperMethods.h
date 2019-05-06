@@ -53,9 +53,7 @@
 	bool moveFile( char* file_path , char* dir_to_store);
 	bool removeDir( char* dir );
 	bool copyDir(char* proj_name, char* copyPath);
-	bool fileEquals(char* f1_name, char* f2_path);
-	int numFilesInDir( char* dir_name );
-	char* findFileMatchInDir( char* dir_name, char* f_compare );
+
 
 	/*String Manipulation Methods*/
 	char* substr(char* s, size_t start_ind, size_t length);
@@ -87,8 +85,5 @@
 	char* createManifest(char* proj_name);
 	bool writeToManifest(char* path, int  manifest_fd );
 	char* generateHash (char* file_name);
-
-	/*WTF methods*/
-	int getProjectVersion( char* proj_name );
 
 #endif

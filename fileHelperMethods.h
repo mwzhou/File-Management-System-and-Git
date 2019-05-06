@@ -52,7 +52,7 @@
 	FileType typeOfFile(char* file_name);
 	bool moveFile( char* file_path , char* dir_to_store);
 	bool removeDir( char* dir );
-	bool copyDir(char* proj_name, char* copyPath);
+	bool copyFile(char* file_name, char* copy_path);
 	bool fileEquals(char* f1_name, char* f2_path);
 	int numFilesInDir( char* dir_name );
 	char* findFileMatchInDir( char* dir_name, char* f_compare );

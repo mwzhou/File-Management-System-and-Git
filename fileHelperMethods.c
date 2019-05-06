@@ -34,7 +34,7 @@ int extractLine(char* fpath, char* target){
     ssize_t read;
 
     fp = fopen( fpath , "r");
-        if (fp == NULL) pEXIT_ERROR("fopen");
+        if (fp == NULL) pRETURN_ERROR("fopen", -1);
 
     int line_num = 1;
     while ((read = getline(&line, &len, fp)) != -1) {
@@ -79,7 +79,7 @@ char* readFile(char* file_name){
 
 		//Initializing File Strings to return
 		char* fstr = (char*)calloc((file_len + 1), 1); //string with file's contents, return this string on success
-			if( fstr == NULL ){ pEXIT_ERROR("calloc()"); }
+			if( fstr == NULL ){ pRETURN_ERROR("calloc()", NULL); }
 
 
 	//READING THE FILE
@@ -142,8 +142,10 @@ FileType typeOfFile(char* file_name){
 force moves file into the specified directory
 **/
 bool moveFile( char* file_path , char* dir_to_store){
-	//ex] mv -f r1.bak/r1/misc r1/
+	//error check
+	if( file_path==NULL||dir_to_store==NULL||typeOfFile(file_path) == isUNDEF || typeOfFile(dir_to_store)!=isDIR ){ pRETURN_ERROR("invalid arguments passed", false); }
 
+	//ex] mv -f r1.bak/r1/misc r1/
 	int cmd_len = strlen(dir_to_store) + strlen( file_path ) + strlen("mv -f ") + 2;
 	char* sys_cmd = (char*)malloc(cmd_len);
 		//cpy info
@@ -153,7 +155,7 @@ bool moveFile( char* file_path , char* dir_to_store){
 		strcat( sys_cmd, dir_to_store);
 
 	//run cmd
-	if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+	if( system(sys_cmd) < 0){free( sys_cmd ); pRETURN_ERROR("system", false); }
 
 	free(sys_cmd);
 	return true;
@@ -162,8 +164,12 @@ bool moveFile( char* file_path , char* dir_to_store){
 
 /**
 removes directory
+@returns if successfully deleted or not
 **/
 bool removeDir( char* dir ){
+	//error check
+	if( dir==NULL||typeOfFile(dir)!=isDIR ){ pRETURN_ERROR("invalid arguments passed, must be existing directory", false); }
+
 	//ex] rm -r dir
 	int cmd_len = strlen(dir) + strlen("rm -rf ") + 1;
 	char* sys_cmd = (char*)malloc(cmd_len);
@@ -172,29 +178,36 @@ bool removeDir( char* dir ){
 		strcat( sys_cmd, dir);
 
 		//run cmd
-		if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+		if( system(sys_cmd)< 0 ){ free( sys_cmd ); pRETURN_ERROR("system", false); }
+			free(sys_cmd);
 
-		free(sys_cmd);
-		return true;
+		//return true if succesfully deleted directory
+		return ( typeOfFile(dir)==isUNDEF );
 }
+
 
 /**
 Copies directory or file to other location
+@params: char* file_name - file name to copy
+				 char* copy_path - path to copy to (already has the renamed file in the path)
 **/
-bool copyDir(char* proj_name, char* copyPath){
-	int cmd_len = strlen("cp -r ")+strlen(realpath(proj_name,NULL)) + strlen(" ") + strlen(copyPath) + 2;
+bool copyFile(char* file_name, char* copy_path){
+	//error check
+	if( file_name==NULL||copy_path==NULL||typeOfFile(file_name)==isUNDEF || typeOfFile(copy_path)==isUNDEF  ){ pRETURN_ERROR("invalid arguments passed, must be existing directory", false); }
+
+	//get cmd
+	int cmd_len = strlen("cp -r ")+strlen(file_name) + strlen(" ") + strlen(copy_path) + 2;
 	char* sys_cmd = (char*)malloc(cmd_len);
 		//cpy info
 		strcpy( sys_cmd, "cp -r ");
-		strcat( sys_cmd, realpath(proj_name,NULL));
+		strcat( sys_cmd, file_name);
 		strcat( sys_cmd, " ");
-		strcat( sys_cmd, copyPath);
-	//copy Project to backUp directory with version number
-	system(sys_cmd);
-	if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
-	//printf("%s\n",sys_cmd);
+		strcat( sys_cmd, copy_path);
+
+	//call system command - scopy Project to backUp directory with version number
+	if( system(sys_cmd) < 0 ){ free( sys_cmd ); pRETURN_ERROR("system", false); }
 	free(sys_cmd);
-	return true;
+	return ( typeOfFile(file_name)!=isUNDEF && typeOfFile(copy_path)!=isUNDEF );
 }
 
 
@@ -293,7 +306,7 @@ char* substr(char* s, size_t start_ind, size_t length){
 	if( (start_ind+length-1)  > strlen(s) ){ pRETURN_ERROR("start_ind+length-1 cannot be larger than the string passed in",NULL); }
 
 	char* ret = (char*)malloc(length); //malloc string to return
-		if(ret==NULL){ pEXIT_ERROR("malloc"); }
+		if(ret==NULL){ pRETURN_ERROR("malloc", NULL); }
 
 	memcpy(ret, s+start_ind, length); //copies s+start to length into ret
 	ret[length - 1] = '\0';
@@ -312,7 +325,7 @@ char* combinedPath(char* path_name, char* file_name){
 
 	//reallocate enough space
 	char* ret = (char*)malloc( 2 + strlen(path_name) + strlen(file_name) );
-		if(ret==NULL){ pEXIT_ERROR("malloc"); }
+		if(ret==NULL){ pRETURN_ERROR("malloc", NULL); }
 
 	//copies and concatenates string
 	strcpy(ret, path_name);
@@ -335,7 +348,7 @@ char* concatString(char* s1, char* s2){
 
 	//reallocate enough space
 	char* ret = (char*)malloc( 1 + strlen(s1) + strlen(s2) );
-		if(ret==NULL){ pEXIT_ERROR("malloc"); }
+		if(ret==NULL){ pRETURN_ERROR("malloc",NULL); }
 
 	//copies and concatenates string
 	strcpy(ret, s1);
@@ -436,11 +449,10 @@ bool sendStringSocketst( int sockfd, char* str, char* sock_type ){
 	//send num of bytes
 	int send_bytes = strlen(str);
 	if( write(sockfd, &send_bytes,  4) < 0 ) pRETURN_ERROR("write()", false);
-	printf("\tsent %d number of bytes to %s\n",send_bytes, sock_type);
 
 	//sending string
-	printf("\tsending string to %s\n", sock_type);
 	if( write(sockfd, str , send_bytes) < 0 ) pRETURN_ERROR("write()", false);
+	printf("\tsent string of %d number of bytes to %s\n",send_bytes, sock_type);
 
 	return true;
 }
@@ -455,7 +467,6 @@ char* recieveStringSocketst( int sockfd, char* sock_type ){
 		int num_bytes;
 		READ_AND_CHECKe(sockfd, &num_bytes, 4);
 			if(num_bytes<=0){ printf("\n\tError on %s side recieving string\n",  sock_type); return NULL; }
-		printf("\tRecieved %d num_bytes to read from %s\n", num_bytes,  sock_type);
 
 	//recieve string contents
 		char* str = (char*)malloc(num_bytes + 1);
@@ -463,6 +474,7 @@ char* recieveStringSocketst( int sockfd, char* sock_type ){
 		READ_AND_CHECKe(sockfd, str, num_bytes);
 		str[num_bytes] = '\0';
 
+		printf("\tRecieved string of %d num_bytes to read from %s\n", num_bytes,  sock_type);
 		return str;
 }
 
@@ -482,7 +494,7 @@ bool sendFileSocketst( int sockfd, char* file_name, char* sock_type ){
 			if(file_size<0) pRETURN_ERROR("size", false);
 		//write file size
 		if( write(sockfd, &file_size,  4) < 0 ) pRETURN_ERROR("write()", false);
-		printf("\tsent %d bytes for the file_size\n", file_size);
+		printf("\tSent %d bytes for the file_size\n", file_size);
 
 	/*Sending File*/
 		off_t offset = 0;
@@ -600,6 +612,8 @@ untars file and removes tgz file from file_directory
 returns name of untarred file
 **/
 char* unTar( char* tar_filepath ){
+	if( tar_filepath==NULL || typeOfFile(tar_filepath)==isUNDEF ){ pRETURN_ERROR("invalid arguments passed", NULL); }
+
 	//tar -xzf .Manifest.tgz
 	if(endsWithTGZ(tar_filepath)==false ){ pRETURN_ERROR("doesn't end in tgz",NULL); }
 
@@ -696,7 +710,6 @@ char* makeTar(char* file_path, char* dir_to_store){
 
 	//RUN SYSTEM COMMAND
 		if( system(sys_cmd)< 0 ){free( sys_cmd ); free( root_dir ); pRETURN_ERROR("system", NULL); }
-
 			//free
 			free( sys_cmd );
 
@@ -832,7 +845,7 @@ char* generateHash (char* file_name){
 	SHA256_Final(hash, &ctx);
 
 	char* output = (char*)malloc( SHA256_DIGEST_LENGTH*2 + 1 );
- 	 output[ SHA256_DIGEST_LENGTH*2 ] = '\0';
+  output[ SHA256_DIGEST_LENGTH*2 ] = '\0';
 
 	int i;
 	for(i=0; i<SHA256_DIGEST_LENGTH; i++){
@@ -840,7 +853,6 @@ char* generateHash (char* file_name){
 	}
 	//KEEP HERE BECAUSE SPRINTF
 	free(buffer);
-	close(fp);
 
 	//returning hashcode generated
 	close(fp);

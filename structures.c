@@ -114,9 +114,9 @@ ManifestNode* buildManifestLL(char* manifest_path){
         }
 
     //LOOPING THROUGH CODEBOOK AND ADDING TO TREE
-				strtok( manifest_str,"\n\t");
-        char* curr_token = strtok( NULL , "\n\t"); //get rid of new line
+        char* curr_token = strtok( manifest_str , "\n\t"); 
         int mver_num = atoi( curr_token );
+				strtok( manifest_str,"\n\t"); //skip next line
 
         char* file_name;
         int fver_num;

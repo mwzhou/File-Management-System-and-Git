@@ -221,12 +221,18 @@ bool delProjectNodePN(ProjectNode** head_addr, char* proj_name){
 
 //Returns node of project when given project name to find
 ProjectNode* searchProjectNodePN(ProjectNode* head, char* proj_name){
+
+	TESTP;
 	ProjectNode* ptr = head;
+	TESTP;
 	while(ptr!=NULL){
+		TESTP;
 		if(strcmp(ptr->project_name,proj_name)==0)
 			return ptr;
 		ptr = ptr->next;
+		TESTP;
 	}
+	TESTP;
 	return NULL;
 }
 

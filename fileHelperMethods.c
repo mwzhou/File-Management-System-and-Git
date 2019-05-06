@@ -843,6 +843,5 @@ char* generateHash (char* file_name){
 	close(fp);
 
 	//returning hashcode generated
-	close(fp);
 	return output;
 }

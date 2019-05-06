@@ -68,9 +68,13 @@ void* worker_thread_func(void* arg){
 //[3.1] CHECKOUT////////////////////////////////////////////////////////////////////////
 
 void checkoutServer( int sockfd, char* proj_name ){
+
+	printProjectNode(head);
 	
-	ProjectNode* ptr = searchProjectNodePN(head, proj_name);
-	pthread_mutex_lock(&(ptr->lock));
+	ProjectNode* ptr = searchProjectNode(proj_name);
+	if(ptr==NULL){pRETURN_ERRORvoid("Failed!");}
+	printf("%s\n",(ptr->project_name));
+	//pthread_mutex_lock(&(ptr->lock));
 	
 	printf("\nEntered command: checkout\n");
 	
@@ -78,20 +82,20 @@ void checkoutServer( int sockfd, char* proj_name ){
 		//check if proj exists on Server - send message to client
 		if( sendSig( sockfd, ( typeOfFile(proj_name)!=isDIR ) ) == false) pRETURN_ERRORvoid("project doesn't exist on Server");
 		//waiting for Client to see if project exists
-		TESTP;
 		if( receiveSig( sockfd ) == false ) pRETURN_ERRORvoid("Project already exists on Client");
 
-	//TESTP;
+	//ProjectNode* ptr = searchProjectNode(proj_name);
+	//printf("%s\n",(ptr->project_name));
 
 	/**SEND project over to client**/
 		//get backup folder_dir
 		char* backup_proj_path = concatString( proj_name, ".bak" );
 
-		if ( sendTarFile(sockfd, proj_name, bakup_proj_path) == false){ pRETURN_ERRORvoid("error sending .Manifest file"); }
-			free(bakup_proj_path);
+		if ( sendTarFile(sockfd, proj_name, backup_proj_path) == false){ pRETURN_ERRORvoid("error sending .Manifest file"); }
+			free(backup_proj_path);
 
-	pthread_mutex_unlock(&(ptr->lock));
-	pthread_exit(NULL);
+	//pthread_mutex_unlock(&(ptr->lock));
+	//pthread_exit(NULL);
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -284,6 +288,8 @@ void pushServer(  int sockfd, char* proj_name  ){
 
 
 	//TODO: replaces Server's Manifest and sends to Client
+	
+		//TODO (proj_name, directory in which )
 
 		//TODO: enter command here
 
@@ -441,6 +447,7 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
 
 	char* toUpdate = readFile(tempOfCom);
 
+	//continue to go through client's manifest path and write into file to replace the manifest	
 	while((fgets(buffer, lineSize, cmP) )!=NULL){
 	
 		//find file name
@@ -481,7 +488,7 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
     //free and return
         free(manifest_client_path);
         free(temp_path);
-        fclose(tempFile);
+	fclose(tempFile);
 	remove(tempOfCom);
 	free(tempOfCom);
 	free(bakup);
@@ -495,7 +502,8 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
 Stores current version of project in backup
 **/
 bool storeCurrentVersion(char* proj_name, char* bakup_proj){
-   char* manifest_path = combinedPath(proj_name, ".Manifest"); 
+
+  	char* manifest_path = combinedPath(proj_name, ".Manifest"); 
  
 	FILE* mP = fopen(manifest_path,"r");
 		if( mP == NULL ){ free(manifest_path); pRETURN_ERROR("Manifest doesn't exist on Server", false); }
@@ -526,7 +534,7 @@ bool storeCurrentVersion(char* proj_name, char* bakup_proj){
 	rename(name_will_be, copyPath);
 
 	//tar version file and delete normal file
-	makeTar(copyPath, backup_proj);
+	makeTar(copyPath, bakup_proj);
 	bool delete_version_file = removeDir(copyPath);
 	if(delete_version_file==false){pRETURN_ERROR("Removing directory failed",false);}
 
@@ -912,8 +920,6 @@ int main(int argc, char * argv[]){
 	}
 
 
-
-
 	//ACCEPT connecting and accepting message for client
 	int curr_socket;
 	while( (curr_socket= accept(overall_socket, (struct sockaddr*) &address, (socklen_t*)&addrlen)) > 0 ){
@@ -934,8 +940,6 @@ int main(int argc, char * argv[]){
 	//if accept failed
 	if(curr_socket<0){ pRETURN_ERROR("Connection to client failed",-1); }
 
-	if(close(overall_socket) < 0) pRETURN_ERROR("Error on Close",-1);
-
 
 
 	printf("Main thread Broke out of while accept loop\n");
@@ -954,7 +958,7 @@ int main(int argc, char * argv[]){
 	pthread_cancel(manager_thread);
 	pthread_join(manager_thread, NULL);
 	printf("cleaned up manager thread\n");
-	close(overall_socket);
+	if(close(overall_socket) < 0) pRETURN_ERROR("Error on Close",-1);
 
 	return 0;	//initialize overall_socket
 }

@@ -11,13 +11,14 @@
 #include <sys/socket.h>
 #include <sys/sendfile.h>
 #include <sys/stat.h>
+#include <openssl/sha.h>
 #include <netinet/in.h>
 #include <string.h>
 #include <pthread.h>
-#include <openssl/sha.h>
+#include <netdb.h>
+#include <signal.h>
 
 #include "server.h"
-
 
 //GLOBALS////////////////////////////////////////////////////////////////
 #define BACKLOG 50
@@ -27,6 +28,40 @@ ClientThread clients[BACKLOG];
 pthread_mutex_t clients_lock = PTHREAD_MUTEX_INITIALIZER;
 
 ProjectNode *head = NULL;
+volatile int done = 0;
+
+
+
+//Thread functions
+void* manager_thread_func(void* args){ //manager thread that will synchronously catch SIGINT
+	manager_thread_args* arg = (manager_thread_args*)args;
+	int signum;
+	printf("Manager thread now blocking until SIGINT is pending\n");
+	//block until a SIGINT is generated
+	if(sigwait(arg->set,&signum) != 0){
+		fprintf(stderr, "Errno:%d Message:%s Line:%d\n", errno, strerror(errno),__LINE__);
+		exit(1);
+
+	}
+	//SIGINT CAUGHT
+	printf("SIGINT CAUGHT\nSHUTTING DOWN SERVER\n");
+	shutdown(arg->sd, SHUT_RDWR); //should break main from the accept call
+	pthread_exit(NULL);
+}
+
+
+void* worker_thread_func(void* arg){
+	printf(".\n");
+	while(1){
+		//let main cancel these threads
+		if(done == 1){
+			break;
+		}
+		pthread_yield();
+	}
+	pthread_exit(NULL);
+}
+
 //[3.1] CHECKOUT////////////////////////////////////////////////////////////////////////
 
 void checkoutServer( int sockfd, char* proj_name ){
@@ -239,22 +274,12 @@ void pushServer(  int sockfd, char* proj_name  ){
 
 
 	//Replaces Server's Manifest and sends to Client
-		bool replace = replaceManifestOnPush( proj_name, commit_projp , commit_client_path );
-		if(!replace){
-			sendErrorSocket( sockfd );
-			removeDir(client_files);
-			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files); free(backup_proj);
-			pRETURN_ERRORvoid("replacing Manifest");
-		}
-		//free
+		char* client_man = combinedPath(commit_projp, ".Manifest");
+		moveFile( client_man, proj_name );
 		free(commit_projp);
+		free(client_man);
 
 
-	//send manifest to client to replace
-		char* server_manifest = combinedPath(proj_name, ".Manifest");
-		sendTarFile( sockfd, server_manifest, backup_proj );
-		//free
-		free(backup_proj);
 
 
 	//write to HISTORY file
@@ -887,9 +912,33 @@ int main(int argc, char * argv[]){
 	int status = bind(overall_socket, (struct sockaddr*) &address, addrlen);
 		if(status < 0) pRETURN_ERROR("Error on Bind",-1);
 
-	//LISTENto client
+	//LISTEN to client
 	status = listen(overall_socket, 20);
 		if(status < 0) pRETURN_ERROR("Error on Listen",-1);
+
+
+	//SIGNALS set up
+		sigset_t sigset;
+		sigemptyset(&sigset);
+		sigaddset(&sigset, SIGINT); //we want all threads to block SIGINT
+		if(pthread_sigmask(SIG_SETMASK, &sigset, NULL) != 0){
+			fprintf(stderr, "Errno:%d Message:%s Line:%d\n", errno, strerror(errno),__LINE__);
+			close(overall_socket);
+			exit(1);
+		}
+		printf("Signal dispositions set\n");
+		//all created threads will share the same mask which means that everyone will ignore SIGINT
+
+		//create our manager thread that will wait synchronously for SIGINT
+		pthread_t manager_thread;
+		manager_thread_args args;
+		args.set = &sigset;
+		args.sd = overall_socket;
+		if(pthread_create(&manager_thread, NULL, manager_thread_func, (void*)&args) != 0){
+			fprintf(stderr, "Errno:%d Message:%s Line:%d\n", errno, strerror(errno),__LINE__);
+			close(overall_socket);
+			exit(1);
+		}
 
 
 	//ACCEPT connecting and accepting message for client
@@ -913,5 +962,25 @@ int main(int argc, char * argv[]){
 	if(curr_socket<0){ pRETURN_ERROR("Connection to client failed",-1); }
 
 	if(close(overall_socket) < 0) pRETURN_ERROR("Error on Close",-1);
-	return 0;	//initialize overall_socket
+
+
+	printf("Main thread Broke out of while accept loop\n");
+	done = 1;
+	//BROKEN OUT OF ACCEPT BC OF SHUTDOWN ON SOCKET
+	//CLOSING TIME
+	printf("Time to cancel threads\n");
+	for(i = 0; i < 20; i++){
+		if(pthread_join(clients[i].client,NULL) == 0){
+			printf("Joined thread %d\n", i);
+		}else{
+			printf("Join failed on thread %d\n",i);
+		}
+	}
+	printf("cleaned up worker threads\n");
+	pthread_cancel(manager_thread);
+	pthread_join(manager_thread, NULL);
+	printf("cleaned up manager thread\n");
+	close(overall_socket);
+
+	return 0;
 }

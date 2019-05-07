@@ -17,6 +17,11 @@
 	#define delProjectNode( proj_name ) delProjectNodePN(&head, proj_name)
 	#define searchProjectNode( proj_name ) searchProjectNodePN(head, proj_name)
 	/////////////////////////////////////////////////////////////////////////
+	
+	typedef struct manager_thread_args{
+		sigset_t* set; //signal masks
+		int sd; //listening socket 
+	}manager_thread_args;
 
 	bool storeCurrentVersion(char* proj_name, char* backup_proj);
 	bool updateServerOnPush( char* proj_name, char* dir_of_files, char* commitf_name );

@@ -803,7 +803,8 @@ void currentVersionClient(char* proj_name){
 
 			/*parse through manifest file*/
 			char* curr_token = strtok( manifest_str , "\n\t"); //get rid of new line
-
+			curr_token = strtok( NULL , "\n\t"); 
+			
 			char* file_name;
 			char* fver_num;
 

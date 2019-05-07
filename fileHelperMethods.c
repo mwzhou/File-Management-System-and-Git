@@ -34,7 +34,7 @@ int extractLine(char* fpath, char* target){
     ssize_t read;
 
     fp = fopen( fpath , "r");
-        if (fp == NULL) pEXIT_ERROR("fopen");
+        if (fp == NULL) pRETURN_ERROR("fopen", -1);
 
     int line_num = 1;
     while ((read = getline(&line, &len, fp)) != -1) {
@@ -55,7 +55,7 @@ int sizeOfFile(char* file_name){
 	int file = open(file_name, O_RDONLY);
 		if( file < 0 ){ fprintf( stderr, "file_name: %s\n",file_name); close(file); pRETURN_ERROR("error opening file (O_RDONLY)", -1); }
 
-	int file_len = (int)lseek( file , 0, SEEK_END ); //gets file size in bytes by going to end of file_cpy
+	int file_len = (int)lseek( file, 0, SEEK_END ); //gets file size in bytes by going to end of file_cpy
 		if ( file_len < 0 ){ close(file); pRETURN_ERROR("error getting file length with lseek()", -1); }//checking if file_len is a valid length
 
 	close(file);
@@ -79,7 +79,7 @@ char* readFile(char* file_name){
 
 		//Initializing File Strings to return
 		char* fstr = (char*)calloc((file_len + 1), 1); //string with file's contents, return this string on success
-			if( fstr == NULL ){ pEXIT_ERROR("calloc()"); }
+			if( fstr == NULL ){ pRETURN_ERROR("calloc()", NULL); }
 
 
 	//READING THE FILE
@@ -142,8 +142,10 @@ FileType typeOfFile(char* file_name){
 force moves file into the specified directory
 **/
 bool moveFile( char* file_path , char* dir_to_store){
-	//ex] mv -f r1.bak/r1/misc r1/
+	//error check
+	if( file_path==NULL||dir_to_store==NULL||typeOfFile(file_path) == isUNDEF || typeOfFile(dir_to_store)!=isDIR ){ pRETURN_ERROR("invalid arguments passed", false); }
 
+	//ex] mv -f r1.bak/r1/misc r1/
 	int cmd_len = strlen(dir_to_store) + strlen( file_path ) + strlen("mv -f ") + 2;
 	char* sys_cmd = (char*)malloc(cmd_len);
 		//cpy info
@@ -153,7 +155,7 @@ bool moveFile( char* file_path , char* dir_to_store){
 		strcat( sys_cmd, dir_to_store);
 
 	//run cmd
-	if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+	if( system(sys_cmd) < 0){free( sys_cmd ); pRETURN_ERROR("system", false); }
 
 	free(sys_cmd);
 	return true;
@@ -162,46 +164,140 @@ bool moveFile( char* file_path , char* dir_to_store){
 
 /**
 removes directory
+@returns if successfully deleted or not
 **/
 bool removeDir( char* dir ){
+	//error check
+	if( dir==NULL||typeOfFile(dir)==isUNDEF){ pRETURN_ERROR("invalid arguments passed, file/dir must exist", false); }
+
 	//ex] rm -r dir
-	int cmd_len = strlen(dir) + strlen("rm -r ") + 1;
+	int cmd_len = strlen(dir) + strlen("rm -rf ") + 1;
 	char* sys_cmd = (char*)malloc(cmd_len);
 		//cpy info
-		strcpy( sys_cmd, "rm -r ");
+		strcpy( sys_cmd, "rm -rf ");
 		strcat( sys_cmd, dir);
 
 		//run cmd
-		if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
+		if( system(sys_cmd)< 0 ){ free( sys_cmd ); pRETURN_ERROR("system", false); }
+			free(sys_cmd);
 
-		free(sys_cmd);
-		return true;
+		//return true if succesfully deleted directory
+		return ( typeOfFile(dir)==isUNDEF );
 }
+
 
 /**
 Copies directory or file to other location
+@params: char* file_name - file name to copy
+				 char* copy_path - path to copy to (already has the renamed file in the path)
 **/
-bool copyDir(char* proj_name, char* copyPath){
-	int cmd_len = strlen("cp -r ")+strlen(realpath(proj_name,NULL)) + strlen(" ") + strlen(copyPath) + 2;
+bool copyFile(char* file_name, char* copy_path){
+	//error check
+	if( file_name==NULL||copy_path==NULL||typeOfFile(file_name)==isUNDEF || typeOfFile(copy_path)==isUNDEF  ){ pRETURN_ERROR("invalid arguments passed, must be existing directory", false); }
+
+	//get cmd
+	int cmd_len = strlen("cp -r ")+strlen(file_name) + strlen(" ") + strlen(copy_path) + 2;
 	char* sys_cmd = (char*)malloc(cmd_len);
 		//cpy info
 		strcpy( sys_cmd, "cp -r ");
-		strcat( sys_cmd, realpath(proj_name,NULL));
+		strcat( sys_cmd, file_name);
 		strcat( sys_cmd, " ");
-		strcat( sys_cmd, copyPath);
-	//copy Project to backUp directory with version number
-	system(sys_cmd);
-	if( system(sys_cmd)< 0 ){free( sys_cmd ); pRETURN_ERROR("system", false); }
-	//printf("%s\n",sys_cmd);
+		strcat( sys_cmd, copy_path);
+
+	//call system command - scopy Project to backUp directory with version number
+	if( system(sys_cmd) < 0 ){ free( sys_cmd ); pRETURN_ERROR("system", false); }
 	free(sys_cmd);
-	return true;
+	return ( typeOfFile(file_name)!=isUNDEF && typeOfFile(copy_path)!=isUNDEF );
 }
+
+
+/**
+Check if files are equal
+**/
+bool fileEquals(char* f1_name, char* f2_path){
+	char* s1 = readFile( f1_name );
+		if( s1 == NULL ){ pRETURN_ERROR("reading", false); }
+	char* s2 = readFile( f2_path );
+		if( s2 == NULL ){ pRETURN_ERROR("reading", false); }
+
+	//return if equal or not
+	bool match = ( strcmp(s1,s2) == 0 );
+	free(s1);
+	free(s2);
+	return match;
+}
+
+
+/**
+returns number of files in a directory
+**/
+int numFilesInDir( char* dir_name ){
+	int count = 0;
+
+	struct dirent *dp;
+  DIR *fd;
+  if ((fd = opendir(dir_name)) == NULL) { pRETURN_ERROR("open directory", -1); }
+
+  while ((dp = readdir(fd)) != NULL) {
+	  if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, ".."))
+	    continue;
+
+	  count++;
+  }
+
+  closedir(fd);
+	return count;
+}
+
+
+/**
+find file match in directory
+if match, store the match in a string and delete all other files
+if no match - return NULL
+**/
+char* findFileMatchInDir( char* dir_name, char* f_compare ){
+	char* matched_fpath = NULL;
+	struct dirent *de;
+ 	DIR *dr = opendir(dir_name);
+ 		if (dr == NULL){ pRETURN_ERROR("open directory", NULL); }
+ 	while ((de = readdir(dr)) != NULL){
+		if( strcmp(de->d_name, ".")==0 || strcmp(de->d_name, "..")==0  ) continue;
+
+		char* new_path = combinedPath(dir_name, de->d_name);
+		if( fileEquals( new_path, f_compare ) == true){
+			matched_fpath = new_path;
+		}else{
+			free(new_path);
+		}
+	}
+ 	closedir(dr);
+
+	//if found match - delete all other files
+	if( matched_fpath!=NULL ){
+		struct dirent *de_del;
+	 	DIR *dr_del = opendir(dir_name);
+	 		if (dr_del == NULL){ pRETURN_ERROR("open directory", NULL); }
+	 	while ((de_del = readdir(dr_del)) != NULL){
+			if( strcmp(de_del->d_name, ".")==0 || strcmp(de_del->d_name, "..")==0  ) continue;
+
+			char* new_del_path = combinedPath(dir_name, de_del->d_name);
+			if( strcmp(new_del_path, matched_fpath) != 0){
+				remove(new_del_path);
+			}
+			free(new_del_path);
+		}
+
+	 	closedir(dr_del);
+	}
+
+	return matched_fpath;
+}
+
 
 
 //STRING MANIPULATION methods/////////////////////////////////////////////////////////////////////
 
 /**
-To be used in fileCompressor.c for decompress.
 returns a subtring of s from the start_index to start_index+length of substring
 returns NULL if start_ind+length-1 > strlen(s) or could not get a substring
 **/
@@ -210,7 +306,7 @@ char* substr(char* s, size_t start_ind, size_t length){
 	if( (start_ind+length-1)  > strlen(s) ){ pRETURN_ERROR("start_ind+length-1 cannot be larger than the string passed in",NULL); }
 
 	char* ret = (char*)malloc(length); //malloc string to return
-		if(ret==NULL){ pEXIT_ERROR("malloc"); }
+		if(ret==NULL){ pRETURN_ERROR("malloc", NULL); }
 
 	memcpy(ret, s+start_ind, length); //copies s+start to length into ret
 	ret[length - 1] = '\0';
@@ -229,7 +325,7 @@ char* combinedPath(char* path_name, char* file_name){
 
 	//reallocate enough space
 	char* ret = (char*)malloc( 2 + strlen(path_name) + strlen(file_name) );
-		if(ret==NULL){ pEXIT_ERROR("malloc"); }
+		if(ret==NULL){ pRETURN_ERROR("malloc", NULL); }
 
 	//copies and concatenates string
 	strcpy(ret, path_name);
@@ -252,7 +348,7 @@ char* concatString(char* s1, char* s2){
 
 	//reallocate enough space
 	char* ret = (char*)malloc( 1 + strlen(s1) + strlen(s2) );
-		if(ret==NULL){ pEXIT_ERROR("malloc"); }
+		if(ret==NULL){ pRETURN_ERROR("malloc",NULL); }
 
 	//copies and concatenates string
 	strcpy(ret, s1);
@@ -353,11 +449,10 @@ bool sendStringSocketst( int sockfd, char* str, char* sock_type ){
 	//send num of bytes
 	int send_bytes = strlen(str);
 	if( write(sockfd, &send_bytes,  4) < 0 ) pRETURN_ERROR("write()", false);
-	printf("\tsent %d number of bytes to %s\n",send_bytes, sock_type);
 
 	//sending string
-	printf("\tsending string to %s\n", sock_type);
 	if( write(sockfd, str , send_bytes) < 0 ) pRETURN_ERROR("write()", false);
+	printf("\tsent string of %d number of bytes to %s\n",send_bytes, sock_type);
 
 	return true;
 }
@@ -372,7 +467,6 @@ char* recieveStringSocketst( int sockfd, char* sock_type ){
 		int num_bytes;
 		READ_AND_CHECKe(sockfd, &num_bytes, 4);
 			if(num_bytes<=0){ printf("\n\tError on %s side recieving string\n",  sock_type); return NULL; }
-		printf("\tRecieved %d num_bytes to read from %s\n", num_bytes,  sock_type);
 
 	//recieve string contents
 		char* str = (char*)malloc(num_bytes + 1);
@@ -380,6 +474,7 @@ char* recieveStringSocketst( int sockfd, char* sock_type ){
 		READ_AND_CHECKe(sockfd, str, num_bytes);
 		str[num_bytes] = '\0';
 
+		printf("\tRecieved string of %d num_bytes to read from %s\n", num_bytes,  sock_type);
 		return str;
 }
 
@@ -399,7 +494,7 @@ bool sendFileSocketst( int sockfd, char* file_name, char* sock_type ){
 			if(file_size<0) pRETURN_ERROR("size", false);
 		//write file size
 		if( write(sockfd, &file_size,  4) < 0 ) pRETURN_ERROR("write()", false);
-		printf("\tsent %d bytes for the file_size\n", file_size);
+		printf("\tSent %d bytes for the file_size\n", file_size);
 
 	/*Sending File*/
 		off_t offset = 0;
@@ -455,6 +550,30 @@ char* recieveFileSocketst( int sockfd, char* dir_to_store , char* sock_type ){
 }
 
 
+//WTF methods///////////////////////////////////////////////////////////////////////
+
+/**
+Get project version number through manifest
+**/
+int getProjectVersion( char* proj_name ){
+	char* manifest_path = combinedPath( proj_name, ".Manifest" );
+	char* manifest_str = readFile( manifest_path );
+		if( manifest_str == NULL ){ free(manifest_path); pRETURN_ERROR("reading manifest", -1); }
+
+	//Tokenize to retrive project version number
+	char* tok = strtok(manifest_str, "\n"); //manifest_version : skip
+	tok = strtok( NULL, "\n" ); //project version number!
+
+	int ret = atoi(tok);
+		if( ret<=0 ){ pRETURN_ERROR("not a valid proj ver num", -1); }
+
+	free(manifest_path);
+	free(manifest_str);
+	return ret;
+}
+
+
+
 
 //Tar Methods///////////////////////////////////////////////////////////////////////
 
@@ -493,6 +612,8 @@ untars file and removes tgz file from file_directory
 returns name of untarred file
 **/
 char* unTar( char* tar_filepath ){
+	if( tar_filepath==NULL || typeOfFile(tar_filepath)==isUNDEF ){ pRETURN_ERROR("invalid arguments passed", NULL); }
+
 	//tar -xzf .Manifest.tgz
 	if(endsWithTGZ(tar_filepath)==false ){ pRETURN_ERROR("doesn't end in tgz",NULL); }
 
@@ -589,10 +710,8 @@ char* makeTar(char* file_path, char* dir_to_store){
 
 	//RUN SYSTEM COMMAND
 		if( system(sys_cmd)< 0 ){free( sys_cmd ); free( root_dir ); pRETURN_ERROR("system", NULL); }
-
 			//free
 			free( sys_cmd );
-
 
 //change back to root directory
 	if( chdir(root_dir) < 0 ){ free( root_dir ); pRETURN_ERROR("changing root directory", NULL); }
@@ -726,7 +845,7 @@ char* generateHash (char* file_name){
 	SHA256_Final(hash, &ctx);
 
 	char* output = (char*)malloc( SHA256_DIGEST_LENGTH*2 + 1 );
- 	 output[ SHA256_DIGEST_LENGTH*2 ] = '\0';
+  output[ SHA256_DIGEST_LENGTH*2 ] = '\0';
 
 	int i;
 	for(i=0; i<SHA256_DIGEST_LENGTH; i++){
@@ -734,8 +853,8 @@ char* generateHash (char* file_name){
 	}
 	//KEEP HERE BECAUSE SPRINTF
 	free(buffer);
-	close(fp);
 
 	//returning hashcode generated
+	close(fp);
 	return output;
 }

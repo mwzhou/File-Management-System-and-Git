@@ -28,8 +28,15 @@ ClientThread clients[BACKLOG];
 pthread_mutex_t clients_lock = PTHREAD_MUTEX_INITIALIZER;
 
 ProjectNode *head = NULL;
-volatile int done = 0;
 
+
+
+volatile int done = 0;
+typedef struct manager_thread_args{
+	sigset_t* set; //signal masks
+	int sd; //listening socket 
+}manager_thread_args;
+ProjectNode *head = NULL;
 
 
 //Thread functions

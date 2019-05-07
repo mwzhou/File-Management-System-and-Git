@@ -63,7 +63,6 @@ bool delManifestNode(ManifestNode** head_addr, char* file_name){
 	if( prev == NULL ){
 		temp = head;
 		*head_addr = head->next; //update head
-
 	//delete
 	}else{
 		temp = ptr;
@@ -109,14 +108,17 @@ ManifestNode* buildManifestLL(char* manifest_path){
             if(manifest_str==NULL){ pRETURN_ERROR("error reading .Manifest", NULL); }
 
     //edge case: if no tokens in codebook
-        if(strlen(manifest_str) == 2 ){ //TODO
-            return createManifestNode(-1,"empty",-1,"empty");
+        if(strlen(manifest_str) == 4 ){ //TODO
+						free(manifest_str);
+						char* file_empty = copyString( "empty180009505" );
+						char* hash_empty = copyString( "empty180009505" );
+            return createManifestNode(-1,file_empty,-1,hash_empty);
         }
 
     //LOOPING THROUGH CODEBOOK AND ADDING TO TREE
-				strtok( manifest_str,"\n\t");
-        char* curr_token = strtok( NULL , "\n\t"); //get rid of new line
+        char* curr_token = strtok( manifest_str , "\n\t");
         int mver_num = atoi( curr_token );
+				curr_token = strtok( NULL ,"\n\t"); //skip next line
 
         char* file_name;
         int fver_num;
@@ -130,13 +132,13 @@ ManifestNode* buildManifestLL(char* manifest_path){
 
           //get file v_num
               curr_token =  strtok( NULL , "\n\t");
-                  if( curr_token == NULL ) pRETURN_ERROR("Incorrect .Manifest Format", NULL);
+                  if( curr_token == NULL ){ free(manifest_str); pRETURN_ERROR("Incorrect .Manifest Format", NULL); }
               fver_num = atoi( curr_token );
-                  if( fver_num <= 0 ) pRETURN_ERROR("not a valid version number in .Manifest file", NULL);
+                  if( fver_num <= 0 ){ free(manifest_str); pRETURN_ERROR("not a valid version number in .Manifest file", NULL); }
 
           //get hash
               curr_token = strtok( NULL , "\n\t");
-                  if( curr_token == NULL ) pRETURN_ERROR("Incorrect .Manifest Format", NULL);
+                  if( curr_token == NULL ){ free(manifest_str); pRETURN_ERROR("Incorrect .Manifest Format", NULL); }
               hash = copyString( curr_token );
 
           //insert to tree
@@ -149,6 +151,20 @@ ManifestNode* buildManifestLL(char* manifest_path){
 }
 
 
+/**
+Deletes empty Manifest LL if exists
+**/
+bool delLLIfEmpty( ManifestNode** head_addr ){
+	ManifestNode* head = *head_addr;
+	if( head->mver_num == -1
+			&& head->fver_num == -1
+			&& (strcmp(head->file_name, "empty180009505")== 0 )
+			&& (strcmp(head->hash, "empty180009505")== 0 ) ){
+
+				return delManifestNode( head_addr, "empty180009505" );
+	}
+	return true;
+}
 
 
 //////Project Linked List Methods////////////////////////////////////////////////////////////////
@@ -159,7 +175,7 @@ bool addProjectNodePN( ProjectNode** head_addr, char* proj_name){
 
 	/*Create Node to_add*/
 	ProjectNode* to_add = (ProjectNode*)malloc(sizeof(ProjectNode));
-		to_add -> project_name = proj_name;
+		to_add -> proj_name = proj_name;
 		//initialize lock
 		pthread_mutex_t lock;
 		pthread_mutex_init( &lock, NULL);
@@ -189,7 +205,7 @@ bool delProjectNodePN(ProjectNode** head_addr, char* proj_name){
 	//search for string and get node
 	int cmp = -1;
 	while( ptr!=NULL ){
-		if( (cmp = strcmp(ptr->project_name,proj_name)) == 0 )break;
+		if( (cmp = strcmp(ptr->proj_name,proj_name)) == 0 )break;
 		prev = ptr;
 		ptr = ptr->next;
 	}
@@ -211,7 +227,7 @@ bool delProjectNodePN(ProjectNode** head_addr, char* proj_name){
 	}
 
 	//free and close mutex
-	free(temp->project_name);
+	free(temp->proj_name);
 	pthread_mutex_destroy(&temp->lock); //DESTROY
 	free(temp);
 
@@ -223,7 +239,7 @@ bool delProjectNodePN(ProjectNode** head_addr, char* proj_name){
 ProjectNode* searchProjectNodePN(ProjectNode* head, char* proj_name){
 	ProjectNode* ptr = head;
 	while(ptr!=NULL){
-		if(strcmp(ptr->project_name,proj_name)==0)
+		if(strcmp(ptr->proj_name,proj_name)==0)
 			return ptr;
 		ptr = ptr->next;
 	}
@@ -251,10 +267,10 @@ void printManifestNode( ManifestNode* head ){
 /**
 Print Project Node
 **/
-void printProjectNode( ProjectNode* head ){
-	ProjectNode* ptr = head;
+void printProjectNode( ManifestNode* head ){
+	ManifestNode* ptr = head;
 	while(ptr!=NULL){
-		printf("%s\n", ptr->project_name);
+		printf("%-5s\n", ptr->file_name);
 		ptr = ptr->next;
 	}
 }

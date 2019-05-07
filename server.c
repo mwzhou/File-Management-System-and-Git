@@ -273,12 +273,24 @@ void pushServer(  int sockfd, char* proj_name  ){
 		printf("\tSuccesfully pushed on Server!\n");
 
 
-	//Replaces Server's Manifest and sends to Client
-		char* client_man = combinedPath(commit_projp, ".Manifest");
-		moveFile( client_man, proj_name );
+	
+//Replaces Server's Manifest and sends to Client
+		bool replace = replaceManifestOnPush( proj_name, commit_projp , commit_client_path );
+		if(!replace){
+			sendErrorSocket( sockfd );
+			removeDir(client_files);
+			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files); free(backup_proj);
+			pRETURN_ERRORvoid("replacing Manifest");
+		}
+		//free
 		free(commit_projp);
-		free(client_man);
 
+
+	//send manifest to client to replace
+		char* server_manifest = combinedPath(proj_name, ".Manifest");
+		sendTarFile( sockfd, server_manifest, backup_proj );
+		//free
+		free(backup_proj);
 
 
 
@@ -446,7 +458,6 @@ bool updateServerOnPush( char* proj_name, char* client_files, char* commitf_name
 		return true;
 }
 
-
 /**
 Replaces Manifest on Push
 **/
@@ -457,11 +468,11 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
 
  /*Writing NEW Manifest*/
    //open files
-    FILE* tempFile = fopen(temp_path,"w");
+   	FILE* tempFile = fopen(temp_path,"w");
 			if(tempFile==NULL){ free(temp_path); free(manifest_client_path); pRETURN_ERROR("open", false); }
-    FILE* cmP = fopen(manifest_client_path, "r");
+   	FILE* cmP = fopen(manifest_client_path, "r");
    		if(cmP==NULL){ free(temp_path); free(manifest_client_path); fclose(tempFile); pRETURN_ERROR("open", false); }
-		FILE* cF = fopen(commit_file,"r");
+	FILE* cF = fopen(commit_file,"r");
 	  	if(cF==NULL){ free(temp_path); free(manifest_client_path); fclose(tempFile); fclose(cmP); pRETURN_ERROR("open", false); }
 
 	//file that will contain all of the Update lines
@@ -473,7 +484,7 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
   //rewrite file project version
         int lineSize = 1024;
         int line = 0;
-				char buffer[lineSize];
+	char buffer[lineSize];
         while((fgets(buffer, lineSize, cmP) )!=NULL){
             line++;
             if(line==2){
@@ -488,76 +499,101 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
                 sprintf(str, "%d", vNum);
                 fputs(str, tempFile);
                 fputs("\n", tempFile);
-								break;
+		break;
             }
             else{
                 fputs(buffer, tempFile);
             }
         }
+	fclose(cmP);
+	fclose(tempFile);
+	line=0;
 
-			char buffer2[lineSize];
-			while((fgets(buffer2, lineSize, cF) )!=NULL){
-				char* start = strstr(buffer2,"\t");
-				int index = start-buffer2;
-				char* command = substr(buffer2,index+1,2);
-				if(strcmp(command, "U")==0){
+	char buffer2[lineSize];
+	while((fgets(buffer2, lineSize, cF) )!=NULL){
+		char* start = strstr(buffer2,"\t");
+		int index = start-buffer2;
+		char* command = substr(buffer2,index+1,2);
+		if(strcmp(command, "U")==0){
 
-					//finding fileName
-					char* fileName = substr(buffer2,0,index+1);
-					fputs(fileName,toChangeFile);
-					fputs("\t",toChangeFile);
+			//finding fileName
+			char* fileName = substr(buffer2,0,index+1);
+			fputs(fileName,toChangeFile);
+			fputs("\t",toChangeFile);
 
-					//finding version number
-					index++;
-					while(buffer2[index]!='\t')
-						index++;
-					char* vNum = substr(buffer2,index+1,2);
-					fputs(vNum,toChangeFile);
-					fputs("\t",toChangeFile);
+			//finding version number
+			index++;
+			while(buffer2[index]!='\t')
+				index++;
+			char* vNum = substr(buffer2,index+1,2);
+			fputs(vNum,toChangeFile);
+			fputs("\t",toChangeFile);
 
-					//finding hash
-					index++;
-					while(buffer2[index]!='\t')
-						index++;
-					char* hash = substr(buffer2,index+1,SHA256_DIGEST_LENGTH*2+1);
-					fputs(hash,toChangeFile);
-					fputs("\n",toChangeFile);
+			//finding hash
+			index++;
+			while(buffer2[index]!='\t')
+				index++;
+			char* hash = substr(buffer2,index+1,SHA256_DIGEST_LENGTH*2+1);
+			fputs(hash,toChangeFile);
+			fputs("\n",toChangeFile);
 
-					free(hash);
-					free(vNum);
-					free(fileName);
-				}
-				free(command);
-			}
+			free(hash);
+			free(vNum);
+			free(fileName);
+		}
+		free(command);
+	}
 	fclose(cF);
+	fclose(toChangeFile);
 
 	char* toUpdate = readFile(tempOfCom);
-	while((fgets(buffer, lineSize, cmP) )!=NULL){
-		//find file name
-		char* start = strstr(buffer,"\t");
-		int index = start-buffer;
-		char* fileNameMan = substr(buffer,0,index+1);
 
-		//if manifest file name is not in toUpdate file, copy into manifest
-		char* inUpdate = strstr(toUpdate, fileNameMan);
-		if(inUpdate==NULL){
-			fputs(buffer,tempFile);
+	tempFile = fopen(temp_path,"a+");
+	cmP = fopen(manifest_client_path, "r");
+
+	//if there is nothing in file containing updates store rest of manifest in
+	if(sizeOfFile(tempOfCom)==0){
+		if(line==0||line==1||strlen(buffer)==1){
+			line++;
 		}
-		//if it is in toUpdate file, replace current line with what is in toUpdate
 		else{
-			int index2 = inUpdate - toUpdate;
-			int index3 = index2;
-			while(toUpdate[index3]!='\n')
-				index3++;
-			char* enter = substr(toUpdate, index2, index3-index2+1);
-			fputs(enter,tempFile);
-			free(enter);
+			while((fgets(buffer, lineSize, cmP) )!=NULL){
+				 fputs(buffer, tempFile);
+			}
 		}
-		free(fileNameMan);
+	}
+	else{
+		while((fgets(buffer, lineSize, cmP) )!=NULL){
+			if(line==0||line==1||strlen(buffer)==1){
+				line++;
+				continue;
+			}
+			//find file name
+			char* start = strstr(buffer,"\t");
+			int index = start-buffer;
+			char* fileNameMan = substr(buffer,0,index+1);
+
+			//if manifest file name is not in toUpdate file, copy into manifest
+			char* inUpdate = strstr(toUpdate, fileNameMan);
+			if(inUpdate==NULL){
+				fputs(buffer,tempFile);
+			}
+			//if it is in toUpdate file, replace current line with what is in toUpdate
+			else{
+				int index2 = inUpdate - toUpdate;
+				int index3 = index2;
+				while(toUpdate[index3]!='\n')
+					index3++;
+				char* enter = substr(toUpdate, index2, index3-index2+2);
+				fputs(enter,tempFile);
+				free(enter);
+			}
+			free(fileNameMan);
+		}
 	}
 
 	free(toUpdate);
-  fputs("\n", tempFile);
+  	fputs("\n", tempFile);
 
   /*Replacing and moving*/
     //replace manifest with new one
@@ -568,8 +604,7 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
 
   //free and return
 	remove(tempOfCom);
-  fclose(tempFile);
-	fclose(toChangeFile);
+  	fclose(tempFile);
 	fclose(cmP);
 	free(manifest_client_path);
 	free(temp_path);

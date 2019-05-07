@@ -23,6 +23,8 @@
 		int sd; //listening socket 
 	}manager_thread_args;
 
+	pthread_mutex_t project_lock = PTHREAD_MUTEX_INITIALIZER;
+
 	bool storeCurrentVersion(char* proj_name, char* backup_proj);
 	bool updateServerOnPush( char* proj_name, char* dir_of_files, char* commitf_name );
 	bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_file );

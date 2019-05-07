@@ -624,7 +624,7 @@ void createClient(char* proj_name){
 		//recieve signal if project exists on client
 		if( receiveSig(sockfd) == false ) pEXIT_ERROR("project already exists on Server");
 		//check if directory already exists on client
-		if( sendSig(sockfd, ( typeOfFile(proj_name)==isDIR ) ) ) pEXIT_ERROR("project already exists on Client");
+		if( sendSig(sockfd, ( typeOfFile(proj_name)==isDIR ) ) ==false) pEXIT_ERROR("project already exists on Client");
 
 	/*make directory*/
 	if( mkdir( proj_name , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0 ){ pEXIT_ERROR("mkdir()"); }

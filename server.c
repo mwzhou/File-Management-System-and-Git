@@ -30,8 +30,6 @@ pthread_mutex_t clients_lock = PTHREAD_MUTEX_INITIALIZER;
 ProjectNode *head = NULL;
 volatile int done = 0;
 
-
-
 //Thread functions
 void* manager_thread_func(void* args){ //manager thread that will synchronously catch SIGINT
 	manager_thread_args* arg = (manager_thread_args*)args;
@@ -65,6 +63,7 @@ void* worker_thread_func(void* arg){
 //[3.1] CHECKOUT////////////////////////////////////////////////////////////////////////
 
 void checkoutServer( int sockfd, char* proj_name ){
+
 	printf("\nEntered command: checkout\n");
 
 	/*ERROR CHECK*/
@@ -80,6 +79,7 @@ void checkoutServer( int sockfd, char* proj_name ){
 
 		if ( sendTarFile(sockfd, proj_name, backup_proj_path) == false){ pRETURN_ERRORvoid("error sending .Manifest file"); }
 			free(backup_proj_path);
+
 }
 ////////////////////////////////////////////////////////////////////////
 
@@ -593,7 +593,7 @@ bool replaceManifestOnPush( char* proj_name, char* dir_of_files, char* commit_fi
 	}
 
 	free(toUpdate);
-  	fputs("\n", tempFile);
+
 
   /*Replacing and moving*/
     //replace manifest with new one
@@ -623,7 +623,7 @@ void createServer(  int sockfd, char* proj_name ){
 	printf("\nEntered command: create\n");
 	/*ERROR check*/
 		//check if directory already exists on server
-		if( sendSig(sockfd, ( typeOfFile(proj_name)==isDIR ) ) ){ pRETURN_ERRORvoid("project already exists on Server"); }
+		if( sendSig(sockfd, ( typeOfFile(proj_name)==isDIR ) ) ==false){ pRETURN_ERRORvoid("project already exists on Server"); }
 		//wait from client to check if directory exists on client
 		if( receiveSig(sockfd) == false ) pRETURN_ERRORvoid("project already exists on Client");
 
@@ -635,7 +635,7 @@ void createServer(  int sockfd, char* proj_name ){
 	FILE* manifest_fd = fopen( manifest_path, "w" );
 		if( manifest_fd == NULL ){ removeDir(proj_name); free(manifest_path); pRETURN_ERRORvoid("open"); }
 	//write to file project v_num and manifest v_num
-	fprintf(manifest_fd, "1\n1\n\n");
+	fprintf(manifest_fd, "1\n1\n");
 	fclose(manifest_fd);
 
 	/*make .History File*/
@@ -856,7 +856,7 @@ void* connect_client( void* curr_clientthread ){
 
 		free( arguments );
 
-
+	pthread_mutex_lock(&project_lock);
 	//The following if statements call methods based on the request sent from the client
 	if(strcmp(command,"checkout")==0)
 		checkoutServer(sockfd, proj_name);
@@ -891,6 +891,9 @@ void* connect_client( void* curr_clientthread ){
 	else
 		printf("\tError on client side argument\n");
 
+	pthread_mutex_unlock(&project_lock);
+	pthread_exit(NULL);
+
 	/*EXITING CLIENT*/
 	shutdown(sockfd , SHUT_RDWR );
 	printf("[closing client sock: %d]\n", sockfd);
@@ -902,7 +905,7 @@ void* connect_client( void* curr_clientthread ){
 	args->done = true;
 
 	//releasing mutex
-	pthread_mutex_unlock( &clients_lock );
+	//pthread_mutex_unlock( &clients_lock );
 
 	pthread_exit(NULL);
 
@@ -1004,7 +1007,7 @@ int main(int argc, char * argv[]){
 	//BROKEN OUT OF ACCEPT BC OF SHUTDOWN ON SOCKET
 	//CLOSING TIME
 	printf("Time to cancel threads\n");
-	for(i = 0; i < 20; i++){
+	for(i = 0; i < BACKLOG; i++){
 		if(pthread_join(clients[i].client,NULL) == 0){
 			printf("Joined thread %d\n", i);
 		}else{

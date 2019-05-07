@@ -1,0 +1,305 @@
+ERROR CHECKS:
+
+	1) Calling any mathods prior to creating configure file
+	---------EXAMPLE----------
+	Server Side: 
+		./WTFserver 8080
+		Signal dispositions set
+		Manager thread now blocking until SIGINT is pending
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Client Side:
+		./WTF checkout Asst1
+
+		ERROR:error opening file (O_RDONLY)
+		errno:No such file or directory
+		File:fileHelperMethods.c  on Line:75  in Func:readFile()
+
+
+		ERROR:error reading file, did not configure
+		errno:No such file or directory
+		File:client.c  on Line:56  in Func:initializeIPandPort()
+
+	[dah253@null Client]$ 
+
+	============================================================================================================================================
+
+	2)Failure upon client being unable to communicate with server
+	---------EXAMPLE----------
+	Server Side: 
+		./WTFserver 8080
+		Signal dispositions set
+		Manager thread now blocking until SIGINT is pending
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Client Side:
+		./WTF configure 127.0.0.1 8081
+		configured successfully
+		
+		./WTF checkout Asst4
+
+			ERROR:Connection to Server Failure
+			errno:Connection refused
+			File:client.c  on Line:841  in Func:connectToServer()
+
+		[dah253@null Client]$ 
+
+
+	============================================================================================================================================
+
+	3)Checkout, Update, Upgrade, Commit, Create, Destroy, push, History, Rollback will fail if the project name doesn’t exist on the server
+	---------EXAMPLE----------
+	Server Side: 
+		./WTFserver 8080
+		Signal dispositions set
+		Manager thread now blocking until SIGINT is pending
+		4] Success on connection!
+			Recieved 14 num_bytes to read from Client
+			Recieved from client - command:checkout  proj_name:Asst4 
+
+		Entered command: checkout
+
+		ERROR:project doesn't exist on Server
+		errno:No such file or directory
+		File:server.c  on Line:83  in Func:checkoutServer()
+
+	[closing client sock: 4]
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Client Side:
+		./WTF checkout Asst4
+
+		Successfully connected to server!
+		3] Entered command: checkout
+			sent 14 number of bytes to Server
+			sending string to Server
+
+			ERROR:project does not exist on Server
+			errno:No such file or directory
+			File:client.c  on Line:75  in Func:checkoutClient()
+
+		[dah253@null Client]$ 
+
+	============================================================================================================================================
+
+	4)Checkout, Add, remove will fail if the project name already exists on the client side 
+	---------EXAMPLE----------
+	Server Side: 
+		Signal dispositions set
+		Manager thread now blocking until SIGINT is pending
+		4] Success on connection!
+			Recieved 14 num_bytes to read from Client
+			Recieved from client - command:checkout  proj_name:Asst1 
+
+		Entered command: checkout
+
+			ERROR:Project already exists on Client
+			File:server.c  on Line:85  in Func:checkoutServer()
+	
+	[closing client sock: 4]
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Client Side:
+		./WTF checkout Asst1
+		Successfully connected to server!
+		3] Entered command: checkout
+			sent 14 number of bytes to Server
+			sending string to Server
+
+			ERROR:project name already exists on Client side
+			errno:No such file or directory
+			File:client.c  on Line:77  in Func:checkoutClient()
+
+	[dah253@null Client]$ 
+
+	============================================================================================================================================
+
+	5)Upgrade if there is no .Update on the client side.
+	---------EXAMPLE----------
+	Server Side: 
+		./WTFserver 8080
+		Signal dispositions set
+		Manager thread now blocking until SIGINT is pending
+		4] Success on connection!
+			Recieved 13 num_bytes to read from Client
+			Recieved from client - command:upgrade  proj_name:Asst1 
+
+		Entered command: upgrade
+			Please update first (no update file on client)
+		[closing client sock: 4]
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+	Client Side:
+		./WTF upgrade Asst1
+		Successfully connected to server!
+		3] Entered command: upgrade
+			sent 13 number of bytes to Server
+			sending string to Server
+
+			ERROR:.Update file doesn't exist on Client
+			errno:No such file or directory
+			File:client.c  on Line:269  in Func:upgradeClient()
+
+		[dah253@null Client]$ 
+
+
+	============================================================================================================================================
+
+	6)Commit will fail if client can not fetch the server's .Manifest file for the project
+	---------EXAMPLE----------
+	Server Side: 
+		./WTFserver 8080
+		Signal dispositions set
+		Manager thread now blocking until SIGINT is pending
+		4] Success on connection!
+			Recieved 12 num_bytes to read from Client
+			Recieved from client - command:commit  proj_name:Asst1 
+
+			Entered command: commit
+
+			ERROR:.Manifest file doesn't exist in project on server
+			errno:No such file or directory
+			File:server.c  on Line:157  in Func:commitServer()
+
+		[closing client sock: 4]
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Client Side:
+		./WTF commit Asst1
+		Successfully connected to server!
+		3] Entered command: commit
+			sent 12 number of bytes to Server
+			sending string to Server
+
+			ERROR:.Manifest file does not exist on Server
+			errno:No such file or directory
+			File:client.c  on Line:364  in Func:commitClient()
+
+		[dah253@null Client]$ 
+
+
+	============================================================================================================================================
+//TODO: entire check
+	7)Commit will fail if the client has a .Update file that isn't empty
+	---------EXAMPLE----------
+	Server Side: 
+		
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Client Side:
+		
+
+	============================================================================================================================================
+
+	8) if Manifest versions in commit do not match
+	---------EXAMPLE----------
+	Server Side: 
+		./WTFserver 8080
+		Signal dispositions set
+		Manager thread now blocking until SIGINT is pending
+		4] Success on connection!
+			Recieved 12 num_bytes to read from Client
+			Recieved from client - command:commit  proj_name:Asst1 
+
+			Entered command: commit
+
+			Sending Manifest file over to Client...
+			sent 57 number of bytes to Client
+			sending string to Client
+			sent 150 bytes for the file_size
+
+			Manifest Versions are different, waiting for user to update Manifest Version
+		[closing client sock: 4]
+
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//TODO: theres an address sanitizer issue on the Client side??
+	Client Side:
+		./WTF commit Asst1
+		Successfully connected to server!
+		3] Entered command: commit
+			sent 12 number of bytes to Server
+			sending string to Server
+
+			Recieving Manifest file from Server...
+			Recieved 57 num_bytes to read from Server
+			Recieved 150 num_bytes of file_size to read from Server
+
+
+
+	============================================================================================================================================
+//TODO complete test case
+	9)Push will fail if the client has a .Update consisting of any files that were modified since the last upgade
+	---------EXAMPLE----------
+	Server Side: 
+		
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Client Side:
+		
+
+	============================================================================================================================================
+
+	10)Push will fail if it has a stored .Commit for the client and is not the same as the .Commit the client just sent
+	---------EXAMPLE----------
+	Server Side: 
+		
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Client Side:
+		
+
+	============================================================================================================================================
+
+	11)Push will fail if it has a stored .Commit for the client and is not the same as the .Commit the client just sent
+	---------EXAMPLE----------
+	Server Side: 
+		
+
+		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Client Side:
+		
+
+	============================================================================================================================================
+
+
+
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

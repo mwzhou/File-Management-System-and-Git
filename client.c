@@ -590,6 +590,12 @@ void pushClient(char* proj_name){
 		pEXIT_ERROR("No matching .Commit file on Server.");
 	}
 
+	//recieve manifest from server and replace
+	printf("\n\tRecieving updated Manifest File...\n");
+	char* new_manifest = recieveTarFile(sockfd,backup_proj);
+	moveFile(new_manifest,proj_name);
+	free(new_manifest);
+	printf("\tSuccessfully recieved updated Manifest file!\n");
 
 	//check if push was success
 	bool success_push = receiveSig(sockfd);

@@ -168,7 +168,7 @@ removes directory
 **/
 bool removeDir( char* dir ){
 	//error check
-	if( dir==NULL||typeOfFile(dir)!=isDIR ){ pRETURN_ERROR("invalid arguments passed, must be existing directory", false); }
+	if( dir==NULL||typeOfFile(dir)==isUNDEF){ pRETURN_ERROR("invalid arguments passed, file/dir must exist", false); }
 
 	//ex] rm -r dir
 	int cmd_len = strlen(dir) + strlen("rm -rf ") + 1;

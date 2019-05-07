@@ -543,9 +543,8 @@ void pushClient(char* proj_name){
 		//check if Commit doesn't exist on Server
 		if( receiveSig(sockfd) == false ) pEXIT_ERROR(".Commit file does not exist on Server");
 		//check if Commit exists on Client
-		char* client_commit_dir = combinedPath(proj_name, ".Commit");
-		if( sendSig(sockfd, ( typeOfFile(client_commit_dir) != isREG ) ) == false ){ free(client_commit_dir);  pEXIT_ERROR(".Commit file doesn't exist in project on Client"); }
-
+		char* commit_file = combinedPath(proj_name, ".Commit");
+		if( sendSig(sockfd, ( typeOfFile(commit_file) != isREG ) ) == false ){ free(commit_file);  pEXIT_ERROR(".Commit file doesn't exist in project on Client"); }
 
 	//check if clients .Upgrade file contains any Ms
 		char* update_file = combinedPath(proj_name, ".Update");
@@ -568,18 +567,26 @@ void pushClient(char* proj_name){
 			}
 			fclose(uF);
 		}
+
 	//send signal if Update has any M commands
-		if( sendSig(sockfd, (hasM) ) == false ) pEXIT_ERROR("A file was modified since the last upgrade");
+		if( sendSig(sockfd, (hasM) ) == false ){
+			if( remove(commit_file) < 0 ){ free(commit_file); pEXIT_ERROR("Removing directory failed");}
+			pEXIT_ERROR("A file was modified since the last upgrade");
+		}
 		free(update_file);
 
 	//send in client files for commit
 	char* backup_proj = concatString(proj_name, ".bak");
 	printf("\n\tSending over commit files to Client...\n");
-	if (sendTarFile( sockfd, proj_name , backup_proj) == false) {pRETURN_ERRORvoid("sendTarFile failed");}
+	if (sendTarFile( sockfd, proj_name , backup_proj) == false) {
+		if( remove(commit_file) < 0 ){ free(commit_file); pEXIT_ERROR("Removing directory failed");}
+		pRETURN_ERRORvoid("sendTarFile failed");
+	}
 	printf("\tSent over commit files to Client successfully!\n" );
 
 	//recieving error if .Commits were not the same and deleting .Commit file and exiting
 	if( receiveSig(sockfd) == false ) {
+		if( remove(commit_file) < 0 ){ free(commit_file); pEXIT_ERROR("Removing directory failed");}
 		pEXIT_ERROR("No matching .Commit file on Server.");
 	}
 
@@ -593,15 +600,14 @@ void pushClient(char* proj_name){
 	//check if push was success
 	bool success_push = receiveSig(sockfd);
 	if( success_push){
-		printf("\n\tSuccessfully pushed to Server, will now delete Commit file from Client.\n" );
-		char* commit_file = combinedPath(proj_name, ".Commit");
-		if( remove(commit_file) < 0 ){ free(commit_file); pEXIT_ERROR("Removing directory failed");}
-		free(commit_file);
+		printf("\n\tSuccessfully pushed to Server. Will now delete Commit file from Client.\n" );
 	}else{
-		printf("\n\tFailed push to server, please re-commit\n" );
+		printf("\n\tFailed push to server, please re-commit. Will now delete Commit file from Client.\n" );
 	}
 
 	//freeing and deleting directory
+	if( remove(commit_file) < 0 ){ free(commit_file); pEXIT_ERROR("Removing directory failed");}
+	free(commit_file);
 	free(backup_proj);
 
 	return;
@@ -867,6 +873,12 @@ void rollbackClient(char* proj_name, char* version){
 		int v_num = atoi(version);
 		if(  sendSig( sockfd, (v_num <= 0) ) == false ) pEXIT_ERROR("invalid version number");
 
+		//receive signal if successful
+		if( receiveSig(sockfd) == false ){
+			printf("\tVersion number doesn't exist on Server!\n" );
+		}else{
+			printf("\tSuccesfully rollbacked project version on Server\n" );
+		}
 
 	return;
 }

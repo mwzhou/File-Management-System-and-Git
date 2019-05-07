@@ -697,17 +697,18 @@ void rollbackServer(  int sockfd, char* proj_name, char* version_num){ //TODO Cl
 	int index_end = lengthBeforeLastOccChar(fullPath , '/');
 	char* dir_to_store = substr(fullPath, 0, index_end+1);
 
-
 	//getting path of tared versions
 	char* versionTar = concatString(version_num,".tgz");
 	char* back_proj = concatString(proj_name, ".bak");
 	char* versionPath = combinedPath(back_proj, versionTar);
 
-	//deleting all tar files post requestiod version number
+
+	//find version number
 	struct dirent *de;
 	DIR *dr = opendir(back_proj);
-	if(dr==NULL){pRETURN_ERRORvoid("directory could not be opened");}
+		if(dr==NULL){ pRETURN_ERRORvoid("directory could not be opened");}
 
+	bool ver_found = false;
 	while((de = readdir(dr))!=NULL){
 		char* char_vNum = substr(de->d_name, 0, 2);
 		int curr_vNum = atoi(char_vNum);
@@ -721,6 +722,7 @@ void rollbackServer(  int sockfd, char* proj_name, char* version_num){ //TODO Cl
 
 		//replace current project with version number requested
 		else if(curr_vNum == atoi(version_num)){
+			ver_found = true;
 			char* name = unTar(versionPath);
 			moveFile(name, dir_to_store);
 			removeDir(proj_name);
@@ -731,8 +733,36 @@ void rollbackServer(  int sockfd, char* proj_name, char* version_num){ //TODO Cl
 		}
 		free(char_vNum);
 	}
-
 	closedir(dr);
+
+
+	//if found, then delete all versions higher than it
+	if( ver_found ){
+		struct dirent *de_del;
+		DIR *dr_del = opendir(back_proj);
+			if(dr_del==NULL){ pRETURN_ERRORvoid("directory could not be opened");}
+
+		while((de_del = readdir(dr_del) )!=NULL){
+			char* char_vNum = substr(de_del->d_name, 0, 2);
+			int curr_vNum = atoi(char_vNum);
+			//delete if tar file is a greater version num than the one requested
+			if(curr_vNum > atoi(version_num)){
+				char* dir_to_delete = combinedPath(back_proj, de_del->d_name);
+				removeDir(dir_to_delete);
+				free(dir_to_delete);
+			}
+			free(char_vNum);
+		}
+		closedir(dr_del);
+	}
+
+	//send signal if successfull
+	if( sendSig(sockfd, (!ver_found) ) == false ){
+		printf("\tVersion number doesn't exist!\n" );
+	}else{
+		printf("\tSuccesfully rollbacked project version\n" );
+	}
+
 	free(fullPath);
 	free(dir_to_store);
 	free(versionTar);

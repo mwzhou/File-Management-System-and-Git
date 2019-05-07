@@ -437,7 +437,6 @@ void commitClient(char* proj_name){
 			if( wasChanged==false )
 				printf("\t\tNo commits to do, completely up to date with server!\n\n");
 
-
 			//send tar file to server if successful
 			printf("\n\tSending Commit file to Server...\n");
 			if( sendTarFile( sockfd, commit_path, backup_proj) == false )
@@ -474,7 +473,7 @@ bool writeCommitFile( ManifestNode* clientLL_head, ManifestNode* serverLL_head, 
 
 		//Compare hashes to live hash and get appropriate version number
 		char* cptr_livehash = generateHash(cptr_fname);
-			if( cptr_livehash == NULL ){ fclose(commit_fd); return false; }
+			if( cptr_livehash == NULL ){ printf("\tError Retrieving Live hash for: %s\n", cptr_fname ); return false; }
 		//if hashes are different, increment the file version number
 		int cptr_newv_num = (strcmp( cptr_livehash, cptr->hash ) != 0) ? cptr->fver_num+1 : cptr->fver_num;
 
@@ -493,7 +492,6 @@ bool writeCommitFile( ManifestNode* clientLL_head, ManifestNode* serverLL_head, 
 		/*OUTPUT*/
 		if( commit_cmd == NULL){
 			printf("\t\tCONFLICT ERROR:\t%5s\n", cptr_fname);
-			fclose(commit_fd);
 			return false;
 		}else if( commit_cmd[0] != 'N'){
 			*wasChanged = true;
@@ -512,7 +510,7 @@ bool writeCommitFile( ManifestNode* clientLL_head, ManifestNode* serverLL_head, 
 
 
 	/*Compare Server to rest of Client*/
-	if( serverLL_head == NULL ){ fclose(commit_fd); return true; } //if no files solely on server
+	if( serverLL_head == NULL ){  return true; } //if no files solely on server
 	ManifestNode* sptr = clientLL_head;
 	while( sptr != NULL ){
 		char* sptr_fname = sptr->file_name;
@@ -544,6 +542,10 @@ void pushClient(char* proj_name){
 		if( receiveSig(sockfd) == false ) pEXIT_ERROR("project does not exist on Server");
 		//check if Commit doesn't exist on Server
 		if( receiveSig(sockfd) == false ) pEXIT_ERROR(".Commit file does not exist on Server");
+		//check if Commit exists on Client
+		char* client_commit_dir = combinedPath(proj_name, ".Commit");
+		if( sendSig(sockfd, ( typeOfFile(client_commit_dir) != isREG ) ) == false ){ free(client_commit_dir);  pEXIT_ERROR(".Commit file doesn't exist in project on Client"); }
+
 
 	//check if clients .Upgrade file contains any Ms
 		char* update_file = combinedPath(proj_name, ".Update");
@@ -581,10 +583,25 @@ void pushClient(char* proj_name){
 		pEXIT_ERROR("No matching .Commit file on Server.");
 	}
 
+	//recieve manifest from server and replace
+	printf("\n\tRecieving updated Manifest file...\n" );
+	char* new_manifest = recieveTarFile( sockfd, backup_proj );
+	moveFile( new_manifest, proj_name );
+	free(new_manifest);
+	printf("\tSuccessfully recieved updated Manifest file!\n" );
+
+	//check if push was success
+	bool success_push = receiveSig(sockfd);
+	if( success_push){
+		printf("\n\tSuccessfully pushed to Server, will now delete Commit file from Client.\n" );
+		char* commit_file = combinedPath(proj_name, ".Commit");
+		if( remove(commit_file) < 0 ){ free(commit_file); pEXIT_ERROR("Removing directory failed");}
+		free(commit_file);
+	}else{
+		printf("\n\tFailed push to server, please re-commit\n" );
+	}
+
 	//freeing and deleting directory
-	char* commit_file = combinedPath(proj_name, ".Commit");
-	if( remove(commit_file) < 0 ){ free(commit_file); pEXIT_ERROR("Removing directory failed");}
-	free(commit_file);
 	free(backup_proj);
 
 	return;

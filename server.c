@@ -170,11 +170,11 @@ void pushServer(  int sockfd, char* proj_name  ){
 		//check if no commits exist on Server
 		char* serv_commit_dir = combinedPath(proj_name, ".Commit");
 		if( sendSig(sockfd, ( typeOfFile(serv_commit_dir) != isDIR ) ) == false ){ free(serv_commit_dir);  pRETURN_ERRORvoid(".Commit file doesn't exist in project on server"); }
-		//if file was modified on client side
+		//if Commit doesn't exist on server
+		if( receiveSig(sockfd) == false ) { pRETURN_ERRORvoid("No commit on client side, please commit first before pushing");}
+		//if Update was modified on client side
 		if( receiveSig(sockfd) == false ) { pRETURN_ERRORvoid("A file was modified since the last upgrade on the client side");}
 
-
-	//TODO lock the repository
 
 
 	/*recieve files send from client*/
@@ -220,52 +220,61 @@ void pushServer(  int sockfd, char* proj_name  ){
 			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files); free(backup_proj);
 			pRETURN_ERRORvoid("storing backup");
 		}
-		//free
-		free(backup_proj);
 
 
 	/*Update Server repository*/
 		//did not push, empty commit file
-		printf("\tWill now perform push on Server....\n");
+		printf("\tWill now perform push on Server...\n");
 		if( sizeOfFile(commit_client_path) == 0 ){
-			removeDir(client_files);
-			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files);
-			printf("Server is already up to date, commit is empty!\n");
-			return;
+			printf("\n\tServer is already up to date, commit is empty!\n");
 
 		//perform UMAD
 		}else if( updateServerOnPush( proj_name, client_files ,commit_client_path ) == false ){
+			sendErrorSocket( sockfd );
 			removeDir(client_files);
-			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files);
+			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files); free(backup_proj);
 			pRETURN_ERRORvoid("push failed");
 		}
-		printf("\tSuccesfully pushed on Server....\n");
+		printf("\tSuccesfully pushed on Server!\n");
 
 
 	//Replaces Server's Manifest and sends to Client
 		bool replace = replaceManifestOnPush( proj_name, commit_projp , commit_client_path );
 		if(!replace){
+			sendErrorSocket( sockfd );
 			removeDir(client_files);
-			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files);
+			free(commit_client_path); free(manifest_client_path); free(commit_projp); free(client_files); free(backup_proj);
 			pRETURN_ERRORvoid("replacing Manifest");
 		}
-
 		//free
 		free(commit_projp);
-		free(client_files);
+
+
+	//send manifest to client to replace
+		char* server_manifest = combinedPath(proj_name, ".Manifest");
+		sendTarFile( sockfd, server_manifest, backup_proj );
+		//free
+		free(backup_proj);
+
 
 	//write to HISTORY file
 		char* serv_history_path = combinedPath(proj_name, ".History");
-		FILE* history_fd = fopen( serv_history_path, "w" );
-			if( history_fd == NULL ){ pRETURN_ERRORvoid("Server project must have a .History file"); }
+		FILE* history_fd = fopen( serv_history_path, "a" );
+			if( history_fd == NULL ){ sendErrorSocket( sockfd ); pRETURN_ERRORvoid("Server project must have a .History file"); }
+
 		//write commits
 		if( writeToHistory( proj_name , commit_client_path , history_fd) == false ){
-			PRINT_ERROR("error writint history");
+			sendErrorSocket( sockfd );
+			PRINT_ERROR("error writing to history file");
 		}
+
+		//send success
+		sendNumSocket( sockfd, SUCCESS_SEND );
 
 	//Removing and Freeing
 		//remove commit directory
 		removeDir(client_files);
+		free(client_files);
 		free(commit_client_path);
 		free(manifest_client_path);
 
@@ -278,21 +287,22 @@ Writes to History file after a successful push
 bool writeToHistory( char* proj_name , char* commit_client_path, FILE* history_fd){
 	int proj_vnum = getProjectVersion(proj_name);
 		if( proj_vnum < 0 ) return false;
-
 	char* commit_file = readFile(commit_client_path);
 		if(commit_file == NULL ) return false;
 
 	//write new line and history
-	fprintf( history_fd, "\nPUSH\nproject version %d\n", proj_vnum );
-
+	fprintf( history_fd , "\nPUSH\nproject version %d\n", proj_vnum );
 	char* tok = strtok( commit_file, "\n");
 	do{
 	//write
 		fprintf( history_fd, "%s", tok);
 	}while( (tok = strtok(NULL, "\n")) != NULL );
 
+	fprintf( history_fd, "\n");
 	free( commit_file );
+	fclose(history_fd);
 	return true;
+
 }
 
 
@@ -355,7 +365,6 @@ bool updateServerOnPush( char* proj_name, char* client_files, char* commitf_name
 		do{
 		//get file
 			char* curr_fname = tok;
-			printf("%s\n", tok);
 
 		//get commit command
 			tok = strtok(NULL, "\n\t");
@@ -566,7 +575,7 @@ void createServer(  int sockfd, char* proj_name ){
 	FILE* manifest_fd = fopen( manifest_path, "w" );
 		if( manifest_fd == NULL ){ removeDir(proj_name); free(manifest_path); pRETURN_ERRORvoid("open"); }
 	//write to file project v_num and manifest v_num
-	fprintf(manifest_fd, "1\n1\n");
+	fprintf(manifest_fd, "1\n1\n\n");
 	fclose(manifest_fd);
 
 	/*make .History File*/
